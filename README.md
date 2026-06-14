@@ -15,7 +15,7 @@ GABC/
 |   |-- cec2017_official.py            # CEC2017 测试函数封装
 |   |-- cec2022_official.py            # CEC2022 测试函数封装
 |   |-- comparison_results/            # 单目标实验结果
-|   |-- official_cec2017/              # CEC2017 官方数据
+|   |-- official_cec2017/input_data/   # CEC2017 官方数据
 |   `-- official_cec2022/              # CEC2022 官方数据
 |-- multi_objective/
 |   |-- MOABC.py                       # 多目标人工蜂群算法
@@ -174,7 +174,7 @@ ENABLED_FUNCTION_IDS = ["ZDT1", "ZDT4"]
 ## 注意事项
 
 - 建议从对应子目录运行实验脚本，因为脚本使用了同目录模块导入。
-- 单目标 CEC2017、CEC2022 测试依赖 `official_cec2017` 和 `official_cec2022` 中的官方数据文件，不要随意删除。
+- 单目标 CEC2017、CEC2022 测试依赖 `official_cec2017/input_data` 和 `official_cec2022` 中的官方数据文件，不要随意删除。
 - 实验运行时间与 `RUN_TIMES`、`bee`、`max_iter`、测试函数数量直接相关。
 - 图表中文显示依赖系统字体，脚本默认尝试使用 `Microsoft YaHei`、`SimHei`、`SimSun`。
 - CSV 文件使用 `utf-8-sig` 编码保存，便于用 Excel 打开。

@@ -9,8 +9,6 @@ PI = np.pi
 DATA_DIR = (
     Path(__file__).resolve().parent
     / "official_cec2017"
-    / "CEC17_fast_pow-Cpp"
-    / "CEC17_fast_pow"
     / "input_data"
 )
 

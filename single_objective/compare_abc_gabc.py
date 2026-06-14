@@ -58,6 +58,10 @@ plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "SimSun"]
 plt.rcParams["axes.unicode_minus"] = False
 
 
+def format_float(value, precision=16):
+    return f"{float(value):.{precision}f}"
+
+
 def run_algorithm(algorithm, benchmark, seed):
     bounds = benchmark.get("bounds", BOUNDS)
     start_time = time.perf_counter()
@@ -116,13 +120,13 @@ def print_statistics(benchmark, grouped_results):
         print(f"\n{algorithm_name} 统计结果")
         print("-" * 45)
         print(f"运行次数: {stats['run_times']}")
-        print(f"最优值: {stats['best']:.16e}")
-        print(f"最差值: {stats['worst']:.16e}")
-        print(f"平均值: {stats['mean']:.16e}")
-        print(f"标准差: {stats['std']:.16e}")
-        print(f"中位数: {stats['median']:.16e}")
-        print(f"平均误差: {stats['mean_error']:.16e}")
-        print(f"误差标准差: {stats['std_error']:.16e}")
+        print(f"最优值: {format_float(stats['best'])}")
+        print(f"最差值: {format_float(stats['worst'])}")
+        print(f"平均值: {format_float(stats['mean'])}")
+        print(f"标准差: {format_float(stats['std'])}")
+        print(f"中位数: {format_float(stats['median'])}")
+        print(f"平均误差: {format_float(stats['mean_error'])}")
+        print(f"误差标准差: {format_float(stats['std_error'])}")
         print(f"平均耗时: {stats['mean_time']:.6f} 秒")
         print(f"最优种子: {stats['best_seed']}")
         print(f"最差种子: {stats['worst_seed']}")
@@ -139,9 +143,9 @@ def save_results_to_csv(filename, grouped_results):
                     "benchmark_name": item["benchmark_name"],
                     "algorithm": item["algorithm"],
                     "seed": item["seed"],
-                    "best_value": item["best_value"],
-                    "error": item["error"],
-                    "time": item["time"],
+                    "best_value": format_float(item["best_value"]),
+                    "error": format_float(item["error"]),
+                    "time": format_float(item["time"], precision=6),
                 }
             )
 

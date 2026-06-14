@@ -4,7 +4,7 @@ import numpy as np
 
 
 def calculate_fitness(values):
-    """将最小化目标函数值转换为适应度，目标值越小适应度越大。"""
+    """将最小化目标函数值转换为适应度，目标值越小适应度越大"""
     values = np.asarray(values, dtype=float)
     fitness = np.empty_like(values, dtype=float)
 

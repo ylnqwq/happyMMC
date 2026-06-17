@@ -13,7 +13,7 @@ from mo_utils import non_dominated_mask, spacing_metric
 from multiobjective_benchmarks import ZDT_BENCHMARKS
 
 
-RUN_TIMES = 50
+RUN_TIMES = 5
 OUTPUT_DIR = Path(__file__).resolve().parent / "mo_comparison_results"
 
 # 全局测试开关：
@@ -28,9 +28,9 @@ BENCHMARK_SUITES = {
 }
 
 COMMON_PARAMS = {
-    "bee": 50,
-    "max_iter": 500,
-    "limit": 100,
+    "bee": 75,
+    "max_iter": 750,
+    "limit": 150,
     "archive_size": 100,
 }
 
@@ -54,6 +54,7 @@ ALGORITHMS = [
 
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "SimSun"]
 plt.rcParams["axes.unicode_minus"] = False
+LEGEND_FONT_SIZE = 14
 
 
 def two_objective_hypervolume(objectives, reference_point):
@@ -218,7 +219,7 @@ def plot_pareto_scatter(grouped_results, benchmark, filename):
     plt.ylabel("目标 f2")
     plt.title(f"{benchmark['id']} Pareto 非支配解散点图")
     plt.grid(True, linestyle="--", alpha=0.4)
-    plt.legend()
+    plt.legend(fontsize=LEGEND_FONT_SIZE)
     plt.tight_layout()
     plt.savefig(filename, dpi=300)
     plt.close()
@@ -235,7 +236,7 @@ def plot_average_history(grouped_results, benchmark, filename):
     plt.ylabel("档案中最小目标和")
     plt.title(f"{benchmark['id']} 平均收敛参考曲线")
     plt.grid(True, linestyle="--", alpha=0.4)
-    plt.legend()
+    plt.legend(fontsize=LEGEND_FONT_SIZE)
     plt.tight_layout()
     plt.savefig(filename, dpi=300)
     plt.close()

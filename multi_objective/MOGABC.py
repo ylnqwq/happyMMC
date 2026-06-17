@@ -31,7 +31,7 @@ def initialize_food_sources(food_number, bounds, objective_function):
     return food_sources, objectives, trials
 
 
-def create_neighbor(food_sources, index, bounds):
+def create_neighbor(food_sources, index, bounds, archive_solutions=None, archive_guidance_rate=0.3):
     food_number, dimension = food_sources.shape
     neighbor = food_sources[index].copy()
 
@@ -46,11 +46,23 @@ def create_neighbor(food_sources, index, bounds):
         + phi * (food_sources[index, parameter_index] - food_sources[partner_index, parameter_index])
     )
 
+    if archive_solutions is not None and len(archive_solutions) > 0 and archive_guidance_rate > 0:
+        archive_index = np.random.randint(len(archive_solutions))
+        guide = archive_solutions[archive_index]
+        beta = np.random.uniform(0.0, archive_guidance_rate)
+        neighbor[parameter_index] += beta * (guide[parameter_index] - food_sources[index, parameter_index])
+
     bounds = np.asarray(bounds, dtype=float)
     return np.clip(neighbor, bounds[:, 0], bounds[:, 1])
 
 
-def employed_bee_phase(food_sources, objectives, trials, bounds, objective_function):
+def employed_bee_phase(
+    food_sources,
+    objectives,
+    trials,
+    bounds,
+    objective_function,
+):
     for i in range(len(food_sources)):
         candidate = create_neighbor(food_sources, i, bounds)
         candidate_objective = objective_function(candidate)
@@ -71,7 +83,14 @@ def tournament_select(ranks, distances, tournament_size=3):
     return best
 
 
-def onlooker_bee_phase(food_sources, objectives, trials, bounds, objective_function, tournament_size=3):
+def onlooker_bee_phase(
+    food_sources,
+    objectives,
+    trials,
+    bounds,
+    objective_function,
+    tournament_size=3,
+):
     ranks, distances = population_scores(objectives)
 
     for _ in range(len(food_sources)):
@@ -93,7 +112,16 @@ def scout_bee_phase(food_sources, objectives, trials, bounds, objective_function
             trials[i] = 0
 
 
-def elite_enhancement_phase(food_sources, objectives, trials, bounds, objective_function, elite_rate=0.1):
+def elite_enhancement_phase(
+    food_sources,
+    objectives,
+    trials,
+    bounds,
+    objective_function,
+    elite_rate=0.1,
+    archive_solutions=None,
+    archive_guidance_rate=0.3,
+):
     food_number = len(food_sources)
     elite_number = max(1, int(np.ceil(food_number * elite_rate)))
     ranks, distances = population_scores(objectives)
@@ -101,7 +129,7 @@ def elite_enhancement_phase(food_sources, objectives, trials, bounds, objective_
     elite_indexes = order[:elite_number]
 
     for index in elite_indexes:
-        candidate = create_neighbor(food_sources, index, bounds)
+        candidate = create_neighbor(food_sources, index, bounds, archive_solutions, archive_guidance_rate)
         candidate_objective = objective_function(candidate)
         greedy_select_multi(food_sources, objectives, trials, index, candidate, candidate_objective)
 
@@ -146,6 +174,7 @@ def multi_objective_gabc(
     elite_rate=0.1,
     elimination_rate=0.1,
     archive_size=100,
+    archive_guidance_rate=0.3,
     seed=None,
 ):
     if seed is None:
@@ -169,7 +198,13 @@ def multi_objective_gabc(
     history = [best_sum_history_value(archive_objectives)]
 
     for iteration in range(max_iter):
-        employed_bee_phase(food_sources, objectives, trials, bounds, objective_function)
+        employed_bee_phase(
+            food_sources,
+            objectives,
+            trials,
+            bounds,
+            objective_function,
+        )
         onlooker_bee_phase(
             food_sources,
             objectives,
@@ -186,6 +221,8 @@ def multi_objective_gabc(
             bounds,
             objective_function,
             elite_rate=elite_rate,
+            archive_solutions=archive_solutions,
+            archive_guidance_rate=archive_guidance_rate,
         )
         current_elimination_rate = get_current_elimination_rate(elimination_rate, iteration, max_iter)
         worst_elimination_phase(

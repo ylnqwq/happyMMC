@@ -13,7 +13,7 @@ from cec2017_official import OFFICIAL_CEC2017_BENCHMARKS
 from cec2022_official import OFFICIAL_CEC2022_BENCHMARKS
 
 
-RUN_TIMES = 1
+RUN_TIMES = 30
 BOUNDS = [(-100, 100)] * 10
 OUTPUT_DIR = Path(__file__).resolve().parent / "comparison_results"
 
@@ -56,6 +56,7 @@ ALGORITHMS = [
 
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "SimSun"]
 plt.rcParams["axes.unicode_minus"] = False
+LEGEND_FONT_SIZE = 14
 
 
 def format_float(value, precision=16):
@@ -179,7 +180,7 @@ def plot_best_value_curve(grouped_results, benchmark, filename):
     plt.ylabel("最优目标函数值")
     plt.title(f"{benchmark['id']} 独立运行最优值对比")
     plt.grid(True, linestyle="--", alpha=0.4)
-    plt.legend()
+    plt.legend(fontsize=LEGEND_FONT_SIZE)
     plt.tight_layout()
     plt.savefig(filename, dpi=300)
     plt.close()
@@ -212,7 +213,7 @@ def plot_average_convergence_curve(grouped_results, benchmark, filename):
     plt.ylabel("平均最优目标函数值")
     plt.title(f"{benchmark['id']} 平均收敛曲线")
     plt.grid(True, linestyle="--", alpha=0.4)
-    plt.legend()
+    plt.legend(fontsize=LEGEND_FONT_SIZE)
     plt.tight_layout()
     plt.savefig(filename, dpi=300)
     plt.close()

@@ -28,7 +28,11 @@ def calculate_relative_fitness(values):
 
 def good_point_set(food_number, dimension):
     """佳点集初始化序列，用确定性低差异序列提升初始种群多样性。"""
-    r = 2 * np.cos(2 * np.pi * np.arange(1, dimension + 1) / 7)
+    prime = 2 * dimension + 3
+    while any(prime % factor == 0 for factor in range(2, int(np.sqrt(prime)) + 1)):
+        prime += 1
+
+    r = 2 * np.cos(2 * np.pi * np.arange(1, dimension + 1) / prime)
     indexes = np.arange(1, food_number + 1).reshape(-1, 1)
     return np.mod(indexes * r, 1.0)
 
@@ -67,13 +71,13 @@ def create_neighbor(food_sources, index, bounds):
     return np.clip(neighbor, bounds[:, 0], bounds[:, 1])
 
 
-def greedy_select(food_sources, values, trials, index, candidate, candidate_value):
+def greedy_select(food_sources, values, trials, index, candidate, candidate_value, count_failure=True):
     """候选蜜源更优则替换，否则试探次数加一。"""
     if candidate_value < values[index]:
         food_sources[index] = candidate
         values[index] = candidate_value
         trials[index] = 0
-    else:
+    elif count_failure:
         trials[index] += 1
 
 
@@ -141,7 +145,15 @@ def elite_enhancement_phase(
     for index in elite_indexes:
         candidate = create_neighbor(food_sources, index, bounds)
         candidate_value = objective_function(candidate)
-        greedy_select(food_sources, values, trials, index, candidate, candidate_value)
+        greedy_select(
+            food_sources,
+            values,
+            trials,
+            index,
+            candidate,
+            candidate_value,
+            count_failure=False,
+        )
 
 
 def worst_elimination_phase(

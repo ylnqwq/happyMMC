@@ -13,7 +13,7 @@ from mo_utils import non_dominated_mask, spacing_metric
 from multiobjective_benchmarks import ZDT_BENCHMARKS
 
 
-RUN_TIMES = 5
+RUN_TIMES = 10
 OUTPUT_DIR = Path(__file__).resolve().parent / "mo_comparison_results"
 
 # 全局测试开关：

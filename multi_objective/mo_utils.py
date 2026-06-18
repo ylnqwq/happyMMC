@@ -123,7 +123,15 @@ def population_scores(objectives):
     return ranks, distances
 
 
-def greedy_select_multi(solutions, objectives, trials, index, candidate_solution, candidate_objective):
+def greedy_select_multi(
+    solutions,
+    objectives,
+    trials,
+    index,
+    candidate_solution,
+    candidate_objective,
+    count_failure=True,
+):
     current_objective = objectives[index]
 
     if dominates(candidate_objective, current_objective):
@@ -133,14 +141,15 @@ def greedy_select_multi(solutions, objectives, trials, index, candidate_solution
         return
 
     if dominates(current_objective, candidate_objective):
-        trials[index] += 1
+        if count_failure:
+            trials[index] += 1
         return
 
     if np.random.rand() < 0.5:
         solutions[index] = candidate_solution
         objectives[index] = candidate_objective
         trials[index] = 0
-    else:
+    elif count_failure:
         trials[index] += 1
 
 

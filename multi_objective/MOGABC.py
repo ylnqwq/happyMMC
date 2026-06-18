@@ -131,7 +131,15 @@ def elite_enhancement_phase(
     for index in elite_indexes:
         candidate = create_neighbor(food_sources, index, bounds, archive_solutions, archive_guidance_rate)
         candidate_objective = objective_function(candidate)
-        greedy_select_multi(food_sources, objectives, trials, index, candidate, candidate_objective)
+        greedy_select_multi(
+            food_sources,
+            objectives,
+            trials,
+            index,
+            candidate,
+            candidate_objective,
+            count_failure=False,
+        )
 
 
 def worst_elimination_phase(food_sources, objectives, trials, bounds, objective_function, elimination_rate=0.1):

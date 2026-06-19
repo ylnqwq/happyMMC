@@ -8,7 +8,7 @@ from multi_objective.mo_utils import (
     evaluate_objectives,
     non_dominated_mask,
     pareto_rank,
-    update_archive,
+    truncate_by_crowding,
     validate_bounds,
 )
 
@@ -116,6 +116,13 @@ def _environmental_select(population, objectives, population_size):
     return population[selected], objectives[selected]
 
 
+def _final_non_dominated_front(population, objectives, archive_size):
+    mask = non_dominated_mask(objectives)
+    front_population = population[mask]
+    front_objectives = objectives[mask]
+    return truncate_by_crowding(front_population, front_objectives, archive_size)
+
+
 def nsga2(
     objective_function,
     bounds,
@@ -142,12 +149,8 @@ def nsga2(
     population = np.random.uniform(lower_bounds, upper_bounds, size=(population_size, dimension))
     objectives = evaluate_objectives(objective_function, population)
 
-    archive_solutions = np.empty((0, dimension), dtype=float)
-    archive_objectives = np.empty((0, objectives.shape[1]), dtype=float)
-    archive_solutions, archive_objectives = update_archive(
-        archive_solutions, archive_objectives, population, objectives, archive_size
-    )
-    history = [best_sum_history_value(archive_objectives)]
+    front_solutions, front_objectives = _final_non_dominated_front(population, objectives, archive_size)
+    history = [best_sum_history_value(front_objectives)]
 
     for _ in range(max_iter):
         offspring = []
@@ -166,10 +169,8 @@ def nsga2(
         combined = np.vstack([population, offspring])
         combined_objectives = np.vstack([objectives, offspring_objectives])
         population, objectives = _environmental_select(combined, combined_objectives, population_size)
-        archive_solutions, archive_objectives = update_archive(
-            archive_solutions, archive_objectives, population, objectives, archive_size
-        )
-        history.append(best_sum_history_value(archive_objectives))
+        front_solutions, front_objectives = _final_non_dominated_front(population, objectives, archive_size)
+        history.append(best_sum_history_value(front_objectives))
 
-    return archive_solutions, archive_objectives, history, used_seed
+    return front_solutions, front_objectives, history, used_seed
 

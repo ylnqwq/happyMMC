@@ -6,25 +6,33 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
 import MOABC
 import MOGABC
 from mo_utils import non_dominated_mask, spacing_metric
-from multiobjective_benchmarks import ZDT_BENCHMARKS
+from multiobjective_benchmarks import CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
+from statistical_tests import (
+    print_average_rank_overview,
+    print_wilcoxon_overview,
+    save_average_rank_results,
+    save_wilcoxon_results,
+)
 
 
 RUN_TIMES = 10
 OUTPUT_DIR = Path(__file__).resolve().parent / "mo_comparison_results"
 
 # 全局测试开关：
-# 1. ENABLED_SUITES 控制要跑哪些测试集，可选 "ZDT"。
+# 1. ENABLED_SUITES 控制要跑哪些测试集，可选 "ZDT"、"CEC2020_MMO"。
 # 2. ENABLED_FUNCTION_IDS 控制要跑哪些具体函数，空列表表示不过滤。
-#    例：只跑 ZDT1 和 ZDT4 -> ENABLED_FUNCTION_IDS = ["ZDT1", "ZDT4"]
-ENABLED_SUITES = ["ZDT"]
+#    例：只跑 MMF1 和 MMF10 -> ENABLED_FUNCTION_IDS = ["MMF1", "MMF10"]
+ENABLED_SUITES = ["CEC2020_MMO"]
 ENABLED_FUNCTION_IDS = []
 
 BENCHMARK_SUITES = {
     "ZDT": ZDT_BENCHMARKS,
+    "CEC2020_MMO": CEC2020_MMO_BENCHMARKS,
 }
 
 COMMON_PARAMS = {
@@ -50,6 +58,11 @@ ALGORITHMS = [
             "elimination_rate": 0.15,
         },
     },
+]
+STATISTICAL_TEST_METRICS = [
+    ("hypervolume", True),
+    ("spacing", False),
+    ("best_sum", False),
 ]
 
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "SimSun"]
@@ -77,6 +90,37 @@ def two_objective_hypervolume(objectives, reference_point):
     return float(hypervolume)
 
 
+def three_objective_hypervolume(objectives, reference_point):
+    objectives = np.asarray(objectives, dtype=float)
+    reference_point = np.asarray(reference_point, dtype=float)
+    valid_mask = np.all(objectives < reference_point, axis=1)
+    points = objectives[valid_mask]
+    if len(points) == 0:
+        return 0.0
+
+    points = points[non_dominated_mask(points)]
+    points = points[np.argsort(points[:, 0])]
+
+    hypervolume = 0.0
+    for index, point in enumerate(points):
+        next_x = points[index + 1, 0] if index + 1 < len(points) else reference_point[0]
+        width = max(0.0, next_x - point[0])
+        if width <= 0.0:
+            continue
+        slice_points = points[: index + 1, 1:3]
+        hypervolume += width * two_objective_hypervolume(slice_points, reference_point[1:3])
+    return float(hypervolume)
+
+
+def calculate_hypervolume(objectives, reference_point):
+    objective_count = np.asarray(objectives).shape[1]
+    if objective_count == 2:
+        return two_objective_hypervolume(objectives, reference_point)
+    if objective_count == 3:
+        return three_objective_hypervolume(objectives, reference_point)
+    raise ValueError(f"暂不支持 {objective_count} 目标超体积计算")
+
+
 def run_algorithm(algorithm, benchmark, seed):
     start_time = time.perf_counter()
     archive_solutions, archive_objectives, history, used_seed = algorithm["runner"](
@@ -102,8 +146,9 @@ def run_algorithm(algorithm, benchmark, seed):
         "mean_sum": float(np.mean(objective_sums)),
         "min_f1": float(np.min(archive_objectives[:, 0])),
         "min_f2": float(np.min(archive_objectives[:, 1])),
+        "min_f3": float(np.min(archive_objectives[:, 2])) if archive_objectives.shape[1] >= 3 else "",
         "spacing": spacing_metric(archive_objectives),
-        "hypervolume": two_objective_hypervolume(archive_objectives, benchmark["reference_point"]),
+        "hypervolume": calculate_hypervolume(archive_objectives, benchmark["reference_point"]),
         "time": elapsed_time,
         "history": history,
     }
@@ -176,6 +221,7 @@ def save_results_to_csv(filename, grouped_results):
                     "mean_sum": item["mean_sum"],
                     "min_f1": item["min_f1"],
                     "min_f2": item["min_f2"],
+                    "min_f3": item["min_f3"],
                     "spacing": item["spacing"],
                     "hypervolume": item["hypervolume"],
                     "time": item["time"],
@@ -189,26 +235,48 @@ def save_results_to_csv(filename, grouped_results):
 
 
 def save_archive_points(filename, grouped_results):
-    fieldnames = ["algorithm", "run", "seed", "point_index", "f1", "f2"]
+    objective_count = max(
+        item["archive_objectives"].shape[1] for results in grouped_results.values() for item in results
+    )
+    fieldnames = ["algorithm", "run", "seed", "point_index"]
+    fieldnames.extend(f"f{index + 1}" for index in range(objective_count))
+
     with open(filename, "w", newline="", encoding="utf-8-sig") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         for results in grouped_results.values():
             for run_index, item in enumerate(results, start=1):
                 for point_index, objective in enumerate(item["archive_objectives"], start=1):
-                    writer.writerow(
-                        {
-                            "algorithm": item["algorithm"],
-                            "run": run_index,
-                            "seed": item["seed"],
-                            "point_index": point_index,
-                            "f1": objective[0],
-                            "f2": objective[1],
-                        }
-                    )
+                    row = {
+                        "algorithm": item["algorithm"],
+                        "run": run_index,
+                        "seed": item["seed"],
+                        "point_index": point_index,
+                    }
+                    for objective_index, value in enumerate(objective, start=1):
+                        row[f"f{objective_index}"] = value
+                    writer.writerow(row)
 
 
 def plot_pareto_scatter(grouped_results, benchmark, filename):
+    if benchmark["objective_count"] == 3:
+        figure = plt.figure(figsize=(7, 6))
+        axis = figure.add_subplot(111, projection="3d")
+        for algorithm_name, results in grouped_results.items():
+            objectives = np.vstack([item["archive_objectives"] for item in results])
+            objectives = objectives[non_dominated_mask(objectives)]
+            axis.scatter(objectives[:, 0], objectives[:, 1], objectives[:, 2], s=14, alpha=0.65, label=algorithm_name)
+
+        axis.set_xlabel("目标 f1")
+        axis.set_ylabel("目标 f2")
+        axis.set_zlabel("目标 f3")
+        axis.set_title(f"{benchmark['id']} Pareto 非支配解散点图")
+        axis.legend(fontsize=LEGEND_FONT_SIZE)
+        plt.tight_layout()
+        plt.savefig(filename, dpi=300)
+        plt.close()
+        return
+
     plt.figure(figsize=(7, 6))
     for algorithm_name, results in grouped_results.items():
         objectives = np.vstack([item["archive_objectives"] for item in results])
@@ -303,9 +371,26 @@ def main():
     OUTPUT_DIR.mkdir(exist_ok=True)
     benchmarks = get_enabled_benchmarks()
 
+    all_results = {}
     total_start_time = time.perf_counter()
     for benchmark in benchmarks:
-        run_benchmark(benchmark)
+        all_results[benchmark["id"]] = run_benchmark(benchmark)
+
+    wilcoxon_rows = save_wilcoxon_results(
+        OUTPUT_DIR / "wilcoxon_test_results.csv",
+        all_results,
+        base_algorithm="MOABC",
+        improved_algorithm="MOGABC",
+        metrics=STATISTICAL_TEST_METRICS,
+    )
+    rank_rows = save_average_rank_results(
+        OUTPUT_DIR / "average_rank_results.csv",
+        all_results,
+        algorithms=[algorithm["name"] for algorithm in ALGORITHMS],
+        metrics=STATISTICAL_TEST_METRICS,
+    )
+    print_wilcoxon_overview(wilcoxon_rows)
+    print_average_rank_overview(rank_rows)
 
     total_time = time.perf_counter() - total_start_time
     print("\n" + "=" * 80)

@@ -11,6 +11,12 @@ import ABC
 import GABC
 from cec2017_official import OFFICIAL_CEC2017_BENCHMARKS
 from cec2022_official import OFFICIAL_CEC2022_BENCHMARKS
+from statistical_tests import (
+    print_average_rank_overview,
+    print_wilcoxon_overview,
+    save_average_rank_results,
+    save_wilcoxon_results,
+)
 
 
 RUN_TIMES = 30
@@ -52,6 +58,10 @@ ALGORITHMS = [
             "elimination_rate": 0.15,
         },
     },
+]
+STATISTICAL_TEST_METRICS = [
+    ("best_value", False),
+    ("error", False),
 ]
 
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "SimSun"]
@@ -280,9 +290,26 @@ def main():
     OUTPUT_DIR.mkdir(exist_ok=True)
     benchmarks = get_enabled_benchmarks()
 
+    all_results = {}
     total_start_time = time.perf_counter()
     for benchmark in benchmarks:
-        run_benchmark(benchmark)
+        all_results[benchmark["id"]] = run_benchmark(benchmark)
+
+    wilcoxon_rows = save_wilcoxon_results(
+        OUTPUT_DIR / "wilcoxon_test_results.csv",
+        all_results,
+        base_algorithm="ABC",
+        improved_algorithm="GABC",
+        metrics=STATISTICAL_TEST_METRICS,
+    )
+    rank_rows = save_average_rank_results(
+        OUTPUT_DIR / "average_rank_results.csv",
+        all_results,
+        algorithms=[algorithm["name"] for algorithm in ALGORITHMS],
+        metrics=STATISTICAL_TEST_METRICS,
+    )
+    print_wilcoxon_overview(wilcoxon_rows)
+    print_average_rank_overview(rank_rows)
 
     total_time = time.perf_counter() - total_start_time
     print("\n" + "=" * 80)

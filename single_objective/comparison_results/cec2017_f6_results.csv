@@ -1,3 +1,0 @@
-﻿run,benchmark_id,benchmark_name,algorithm,seed,best_value,error,time
-1,CEC2017_F6,CEC2017 F6 shifted rotated Schaffer's F7 function,ABC,352376912,603.8515684538307369,3.8515684538307369,3.077360
-1,CEC2017_F6,CEC2017 F6 shifted rotated Schaffer's F7 function,GABC,352376912,601.2962147438854572,1.2962147438854572,2.617306

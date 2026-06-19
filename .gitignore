@@ -1,0 +1,9 @@
+# Experiment outputs
+/结果/
+/single_objective/comparison_results/
+/multi_objective/mo_comparison_results/
+
+# Python cache
+__pycache__/
+*.py[cod]
+

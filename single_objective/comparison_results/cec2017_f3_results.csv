@@ -1,3 +1,0 @@
-﻿run,benchmark_id,benchmark_name,algorithm,seed,best_value,error,time
-1,CEC2017_F3,CEC2017 F3 shifted rotated Zakharov function,ABC,1691014475,7120.8460103939141845,6820.8460103939141845,3.135026
-1,CEC2017_F3,CEC2017 F3 shifted rotated Zakharov function,GABC,1691014475,6054.8100035933894105,5754.8100035933894105,2.580156

@@ -1,3 +1,0 @@
-﻿run,benchmark_id,benchmark_name,algorithm,seed,best_value,error,time
-1,CEC2017_F4,CEC2017 F4 shifted rotated Rosenbrock function,ABC,1265125356,400.3856225094576189,0.3856225094576189,3.040904
-1,CEC2017_F4,CEC2017 F4 shifted rotated Rosenbrock function,GABC,1265125356,400.0145705047302727,0.0145705047302727,2.473116

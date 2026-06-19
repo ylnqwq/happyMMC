@@ -1,3 +1,0 @@
-﻿run,benchmark_id,benchmark_name,algorithm,seed,best_value,error,time
-1,CEC2017_F1,CEC2017 F1 shifted rotated Bent Cigar function,ABC,3137321453,295.7477979895660383,195.7477979895660383,2.876734
-1,CEC2017_F1,CEC2017 F1 shifted rotated Bent Cigar function,GABC,3137321453,244.9951552292503436,144.9951552292503436,2.287804

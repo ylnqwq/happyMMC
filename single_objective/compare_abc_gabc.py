@@ -1,17 +1,21 @@
 # -*- coding: utf-8 -*-
 
 import csv
+import sys
 import time
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-import ACO
-import ABC
-import GA
-import GBABC
-import GABC
+MODULE_DIR = Path(__file__).resolve().parent
+ROOT_DIR = MODULE_DIR.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+if str(MODULE_DIR) not in sys.path:
+    sys.path.insert(0, str(MODULE_DIR))
+
+from single_objective.algorithms import ABC, ACO, GA, IABC, IABC_MSS, NDBP_ABC
 from single_objective_benchmarks import OFFICIAL_CEC2017_BENCHMARKS, OFFICIAL_CEC2022_BENCHMARKS
 from statistical_tests import (
     print_average_rank_overview,
@@ -72,18 +76,26 @@ ALGORITHMS = [
         },
     },
     {
-        "name": "GBABC",
-        "runner": GBABC.gbest_guided_abc,
+        "name": "IABC-MSS",
+        "runner": IABC_MSS.iabc_mss,
         "params": {
             "bee": COMMON_PARAMS["bee"],
             "max_iter": COMMON_PARAMS["max_iter"],
             "limit": COMMON_PARAMS["limit"],
-            "guidance_rate": 1.5,
         },
     },
     {
-        "name": "GABC",
-        "runner": GABC.gabc,
+        "name": "NDBP-ABC",
+        "runner": NDBP_ABC.ndbp_abc,
+        "params": {
+            "bee": COMMON_PARAMS["bee"],
+            "max_iter": COMMON_PARAMS["max_iter"],
+            "limit": COMMON_PARAMS["limit"],
+        },
+    },
+    {
+        "name": "IABC",
+        "runner": IABC.iabc,
         "params": {
             **COMMON_PARAMS,
             "tournament_size": 3,
@@ -339,13 +351,13 @@ def main():
         all_results[benchmark["id"]] = run_benchmark(benchmark)
 
     wilcoxon_rows = []
-    for base_algorithm in [algorithm["name"] for algorithm in ALGORITHMS if algorithm["name"] != "GABC"]:
+    for base_algorithm in [algorithm["name"] for algorithm in ALGORITHMS if algorithm["name"] != "IABC"]:
         wilcoxon_rows.extend(
             save_wilcoxon_results(
-                OUTPUT_DIR / f"wilcoxon_{base_algorithm.lower()}_vs_gabc_results.csv",
+                OUTPUT_DIR / f"wilcoxon_{base_algorithm.lower()}_vs_iabc_results.csv",
                 all_results,
                 base_algorithm=base_algorithm,
-                improved_algorithm="GABC",
+                improved_algorithm="IABC",
                 metrics=STATISTICAL_TEST_METRICS,
             )
         )

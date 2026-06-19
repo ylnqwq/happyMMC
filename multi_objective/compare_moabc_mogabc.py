@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import csv
+import sys
 import time
 from pathlib import Path
 
@@ -8,8 +9,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
-import MOABC
-import MOGABC
+MODULE_DIR = Path(__file__).resolve().parent
+ROOT_DIR = MODULE_DIR.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+if str(MODULE_DIR) not in sys.path:
+    sys.path.insert(0, str(MODULE_DIR))
+
+from multi_objective.algorithms import MOABC, MOIABC, MOPSO, NSGA2, Zhao_IMOABC, Zhou_IMOABC
 from mo_utils import non_dominated_mask, spacing_metric
 from multiobjective_benchmarks import CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
 from statistical_tests import (
@@ -49,8 +56,43 @@ ALGORITHMS = [
         "params": COMMON_PARAMS,
     },
     {
-        "name": "MOGABC",
-        "runner": MOGABC.multi_objective_gabc,
+        "name": "NSGA-II",
+        "runner": NSGA2.nsga2,
+        "params": {
+            "population_size": COMMON_PARAMS["bee"],
+            "max_iter": COMMON_PARAMS["max_iter"],
+            "archive_size": COMMON_PARAMS["archive_size"],
+            "crossover_rate": 0.9,
+        },
+    },
+    {
+        "name": "MOPSO",
+        "runner": MOPSO.mopso,
+        "params": {
+            "swarm_size": COMMON_PARAMS["bee"],
+            "max_iter": COMMON_PARAMS["max_iter"],
+            "archive_size": COMMON_PARAMS["archive_size"],
+            "inertia": 0.4,
+            "cognitive": 1.5,
+            "social": 1.5,
+        },
+    },
+    {
+        "name": "Zhou-IMOABC",
+        "runner": Zhou_IMOABC.zhou_imoabc,
+        "params": COMMON_PARAMS,
+    },
+    {
+        "name": "Zhao-IMOABC",
+        "runner": Zhao_IMOABC.zhao_imoabc,
+        "params": {
+            **COMMON_PARAMS,
+            "elimination_rate": 0.1,
+        },
+    },
+    {
+        "name": "MOIABC",
+        "runner": MOIABC.multi_objective_iabc,
         "params": {
             **COMMON_PARAMS,
             "tournament_size": 3,
@@ -234,6 +276,16 @@ def save_results_to_csv(filename, grouped_results):
         writer.writerows(rows)
 
 
+def save_rows_to_csv(filename, rows):
+    if not rows:
+        return
+
+    with open(filename, "w", newline="", encoding="utf-8-sig") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def save_archive_points(filename, grouped_results):
     objective_count = max(
         item["archive_objectives"].shape[1] for results in grouped_results.values() for item in results
@@ -376,13 +428,18 @@ def main():
     for benchmark in benchmarks:
         all_results[benchmark["id"]] = run_benchmark(benchmark)
 
-    wilcoxon_rows = save_wilcoxon_results(
-        OUTPUT_DIR / "wilcoxon_test_results.csv",
-        all_results,
-        base_algorithm="MOABC",
-        improved_algorithm="MOGABC",
-        metrics=STATISTICAL_TEST_METRICS,
-    )
+    wilcoxon_rows = []
+    for base_algorithm in [algorithm["name"] for algorithm in ALGORITHMS if algorithm["name"] != "MOIABC"]:
+        wilcoxon_rows.extend(
+            save_wilcoxon_results(
+                OUTPUT_DIR / f"wilcoxon_{base_algorithm.lower()}_vs_moiabc_results.csv",
+                all_results,
+                base_algorithm=base_algorithm,
+                improved_algorithm="MOIABC",
+                metrics=STATISTICAL_TEST_METRICS,
+            )
+        )
+    save_rows_to_csv(OUTPUT_DIR / "wilcoxon_test_results.csv", wilcoxon_rows)
     rank_rows = save_average_rank_results(
         OUTPUT_DIR / "average_rank_results.csv",
         all_results,

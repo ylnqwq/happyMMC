@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 
 import numpy as np
 
-from mo_utils import (
+from multi_objective.mo_utils import (
     best_sum_history_value,
     evaluate_objectives,
     greedy_select_multi,
@@ -128,3 +128,4 @@ def multi_objective_abc(
         history.append(best_sum_history_value(archive_objectives))
 
     return archive_solutions, archive_objectives, history, used_seed
+

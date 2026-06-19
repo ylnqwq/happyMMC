@@ -201,10 +201,11 @@ def print_wilcoxon_overview(rows):
     print("Wilcoxon paired signed-rank test summary")
     print("Positive difference means the improved algorithm is better under the metric direction.")
     print("-" * 80)
-    print("benchmark, metric, wins/ties/losses, mean_diff, p_two_sided, p_improved")
+    print("benchmark, metric, comparison, wins/ties/losses, mean_diff, p_two_sided, p_improved")
     for row in rows:
         print(
             f"{row['benchmark_id']}, {row['metric']}, "
+            f"{row['base_algorithm']} -> {row['improved_algorithm']}, "
             f"{row['wins']}/{row['ties']}/{row['losses']}, "
             f"{row['mean_difference']:.6e}, "
             f"{row['p_two_sided']:.6g}, {row['p_improved']:.6g}"

@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 
 import numpy as np
 
-from mo_utils import (
+from multi_objective.mo_utils import (
     best_sum_history_value,
     evaluate_objectives,
     greedy_select_multi,
@@ -172,7 +172,7 @@ def get_current_elimination_rate(initial_rate, iteration, max_iter):
     return initial_rate * stage / 10
 
 
-def multi_objective_gabc(
+def multi_objective_iabc(
     objective_function,
     bounds,
     bee=30,
@@ -252,3 +252,4 @@ def multi_objective_gabc(
         history.append(best_sum_history_value(archive_objectives))
 
     return archive_solutions, archive_objectives, history, used_seed
+

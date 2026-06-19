@@ -7,10 +7,12 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+import ACO
 import ABC
+import GA
+import GBABC
 import GABC
-from cec2017_official import OFFICIAL_CEC2017_BENCHMARKS
-from cec2022_official import OFFICIAL_CEC2022_BENCHMARKS
+from single_objective_benchmarks import OFFICIAL_CEC2017_BENCHMARKS, OFFICIAL_CEC2022_BENCHMARKS
 from statistical_tests import (
     print_average_rank_overview,
     print_wilcoxon_overview,
@@ -19,7 +21,7 @@ from statistical_tests import (
 )
 
 
-RUN_TIMES = 30
+RUN_TIMES = 1
 BOUNDS = [(-100, 100)] * 10
 OUTPUT_DIR = Path(__file__).resolve().parent / "comparison_results"
 
@@ -47,6 +49,37 @@ ALGORITHMS = [
         "name": "ABC",
         "runner": ABC.artificial_bee_colony,
         "params": COMMON_PARAMS,
+    },
+    {
+        "name": "GA",
+        "runner": GA.genetic_algorithm,
+        "params": {
+            "population_size": COMMON_PARAMS["bee"],
+            "max_iter": COMMON_PARAMS["max_iter"],
+            "crossover_rate": 0.8,
+            "mutation_rate": 0.1,
+        },
+    },
+    {
+        "name": "ACO",
+        "runner": ACO.ant_colony_optimization,
+        "params": {
+            "ant": COMMON_PARAMS["bee"],
+            "max_iter": COMMON_PARAMS["max_iter"],
+            "levels": 50,
+            "evaporation_rate": 0.2,
+            "deposit_weight": 1.0,
+        },
+    },
+    {
+        "name": "GBABC",
+        "runner": GBABC.gbest_guided_abc,
+        "params": {
+            "bee": COMMON_PARAMS["bee"],
+            "max_iter": COMMON_PARAMS["max_iter"],
+            "limit": COMMON_PARAMS["limit"],
+            "guidance_rate": 1.5,
+        },
     },
     {
         "name": "GABC",
@@ -178,6 +211,16 @@ def save_results_to_csv(filename, grouped_results):
         writer.writerows(rows)
 
 
+def save_rows_to_csv(filename, rows):
+    if not rows:
+        return
+
+    with open(filename, "w", newline="", encoding="utf-8-sig") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def plot_best_value_curve(grouped_results, benchmark, filename):
     plt.figure(figsize=(10, 5))
     for algorithm_name, results in grouped_results.items():
@@ -295,13 +338,18 @@ def main():
     for benchmark in benchmarks:
         all_results[benchmark["id"]] = run_benchmark(benchmark)
 
-    wilcoxon_rows = save_wilcoxon_results(
-        OUTPUT_DIR / "wilcoxon_test_results.csv",
-        all_results,
-        base_algorithm="ABC",
-        improved_algorithm="GABC",
-        metrics=STATISTICAL_TEST_METRICS,
-    )
+    wilcoxon_rows = []
+    for base_algorithm in [algorithm["name"] for algorithm in ALGORITHMS if algorithm["name"] != "GABC"]:
+        wilcoxon_rows.extend(
+            save_wilcoxon_results(
+                OUTPUT_DIR / f"wilcoxon_{base_algorithm.lower()}_vs_gabc_results.csv",
+                all_results,
+                base_algorithm=base_algorithm,
+                improved_algorithm="GABC",
+                metrics=STATISTICAL_TEST_METRICS,
+            )
+        )
+    save_rows_to_csv(OUTPUT_DIR / "wilcoxon_test_results.csv", wilcoxon_rows)
     rank_rows = save_average_rank_results(
         OUTPUT_DIR / "average_rank_results.csv",
         all_results,

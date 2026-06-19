@@ -10,12 +10,10 @@ GABC/
 |   |-- ABC.py                         # 经典人工蜂群算法
 |   |-- GABC.py                        # 改进人工蜂群算法
 |   |-- compare_abc_gabc.py            # 单目标实验入口
-|   |-- cec2017_official.py            # CEC2017 测试函数封装
-|   |-- cec2022_official.py            # CEC2022 测试函数封装
+|   |-- single_objective_benchmarks.py # CEC2017 与 CEC2022 测试函数
+|   |-- embedded_cec_data.py           # 单目标 CEC 10 维内置数据
 |   |-- statistical_tests.py           # 单目标统计检验工具
-|   |-- comparison_results/            # 单目标实验输出目录
-|   |-- official_cec2017/              # CEC2017 官方数据
-|   `-- official_cec2022/              # CEC2022 官方数据
+|   `-- comparison_results/            # 单目标实验输出目录
 |
 |-- multi_objective/
 |   |-- MOABC.py                       # 多目标人工蜂群算法
@@ -223,7 +221,7 @@ ENABLED_FUNCTION_IDS = ["ZDT1", "ZDT4"]
 
 ## 注意事项
 
-- CEC2017 和 CEC2022 测试依赖官方数据目录，不要删除 `official_cec2017` 和 `official_cec2022`。
+- 单目标 CEC2017 和 CEC2022 默认使用 10 维内置数据；如果修改实验维度，需要补充对应维度的 CEC 数据。
 - 实验运行时间与 `RUN_TIMES`、`bee`、`max_iter` 和测试函数数量直接相关。
 - CSV 文件使用 `utf-8-sig` 编码保存，便于使用 Excel 打开。
 - 图像中文字体依赖系统字体，脚本默认尝试使用 `Microsoft YaHei`、`SimHei`、`SimSun`。

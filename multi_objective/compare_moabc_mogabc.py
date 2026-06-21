@@ -17,9 +17,9 @@ if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
 from multi_objective.algorithms import MOABC, MOIABC, MOPSO, NSGA2, Zhao_IMOABC, Zhou_IMOABC
-from mo_utils import non_dominated_mask, spacing_metric
-from multiobjective_benchmarks import CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
-from statistical_tests import (
+from multi_objective.mo_utils import non_dominated_mask, spacing_metric
+from multi_objective.multiobjective_benchmarks import CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
+from multi_objective.statistical_tests import (
     print_average_rank_overview,
     print_wilcoxon_overview,
     save_average_rank_results,
@@ -34,8 +34,10 @@ OUTPUT_DIR = Path(__file__).resolve().parent / "mo_comparison_results"
 # 1. ENABLED_SUITES 控制要跑哪些测试集，可选 "ZDT"、"CEC2020_MMO"。
 # 2. ENABLED_FUNCTION_IDS 控制要跑哪些具体函数，空列表表示不过滤。
 #    例：只跑 MMF1 和 MMF10 -> ENABLED_FUNCTION_IDS = ["MMF1", "MMF10"]
-ENABLED_SUITES = ["CEC2020_MMO"]
+ENABLED_SUITES = ["ZDT"]
 ENABLED_FUNCTION_IDS = []
+# 可选算法 MOABC, NSGA-II, MOPSO, Zhou-IMOABC, Zhao-IMOABC, MOIABC
+ENABLED_ALGORITHMS = ["MOABC","MOIABC"]
 
 BENCHMARK_SUITES = {
     "ZDT": ZDT_BENCHMARKS,
@@ -386,6 +388,39 @@ def get_enabled_benchmarks():
     return benchmarks
 
 
+def get_enabled_algorithms():
+    if not ENABLED_ALGORITHMS:
+        return ALGORITHMS
+
+    enabled_names = set(ENABLED_ALGORITHMS)
+    algorithms = [algorithm for algorithm in ALGORITHMS if algorithm["name"] in enabled_names]
+    missing_names = enabled_names - {algorithm["name"] for algorithm in ALGORITHMS}
+    if missing_names:
+        valid_names = ", ".join(algorithm["name"] for algorithm in ALGORITHMS)
+        raise ValueError(f"未知算法: {', '.join(sorted(missing_names))}，可选算法: {valid_names}")
+    if not algorithms:
+        raise ValueError("没有选中任何算法，请检查 ENABLED_ALGORITHMS")
+    return algorithms
+
+
+def print_run_configuration(benchmarks, algorithms):
+    print("\n" + "=" * 80)
+    print("多目标实验运行配置")
+    print(f"测试集: {', '.join(ENABLED_SUITES)}")
+    print(f"测试函数数量: {len(benchmarks)}")
+    print(f"测试函数: {', '.join(benchmark['id'] for benchmark in benchmarks)}")
+    print(f"算法数量: {len(algorithms)}")
+    print(f"算法: {', '.join(algorithm['name'] for algorithm in algorithms)}")
+    print(f"独立运行次数: {RUN_TIMES}")
+    print(
+        "公共参数: "
+        f"bee={COMMON_PARAMS['bee']}, "
+        f"max_iter={COMMON_PARAMS['max_iter']}, "
+        f"limit={COMMON_PARAMS['limit']}, "
+        f"archive_size={COMMON_PARAMS['archive_size']}"
+    )
+
+
 def print_progress(current, total, prefix="", width=32):
     ratio = current / total
     completed = int(width * ratio)
@@ -393,9 +428,9 @@ def print_progress(current, total, prefix="", width=32):
     print(f"\r{prefix} [{bar}] {current}/{total} {ratio * 100:6.2f}%", end="", flush=True)
 
 
-def run_benchmark(benchmark):
+def run_benchmark(benchmark, algorithms):
     seeds = np.random.SeedSequence().generate_state(RUN_TIMES)
-    grouped_results = {algorithm["name"]: [] for algorithm in ALGORITHMS}
+    grouped_results = {algorithm["name"]: [] for algorithm in algorithms}
 
     print("\n" + "=" * 80)
     print(f"开始测试: {benchmark['name']}")
@@ -404,7 +439,7 @@ def run_benchmark(benchmark):
     for run_index, seed in enumerate(seeds, start=1):
         seed = int(seed)
 
-        for algorithm in ALGORITHMS:
+        for algorithm in algorithms:
             result = run_algorithm(algorithm, benchmark, seed)
             grouped_results[algorithm["name"]].append(result)
 
@@ -422,28 +457,32 @@ def run_benchmark(benchmark):
 def main():
     OUTPUT_DIR.mkdir(exist_ok=True)
     benchmarks = get_enabled_benchmarks()
+    algorithms = get_enabled_algorithms()
+    print_run_configuration(benchmarks, algorithms)
 
     all_results = {}
     total_start_time = time.perf_counter()
     for benchmark in benchmarks:
-        all_results[benchmark["id"]] = run_benchmark(benchmark)
+        all_results[benchmark["id"]] = run_benchmark(benchmark, algorithms)
 
     wilcoxon_rows = []
-    for base_algorithm in [algorithm["name"] for algorithm in ALGORITHMS if algorithm["name"] != "MOIABC"]:
-        wilcoxon_rows.extend(
-            save_wilcoxon_results(
-                OUTPUT_DIR / f"wilcoxon_{base_algorithm.lower()}_vs_moiabc_results.csv",
-                all_results,
-                base_algorithm=base_algorithm,
-                improved_algorithm="MOIABC",
-                metrics=STATISTICAL_TEST_METRICS,
+    enabled_algorithm_names = [algorithm["name"] for algorithm in algorithms]
+    if "MOIABC" in enabled_algorithm_names:
+        for base_algorithm in [name for name in enabled_algorithm_names if name != "MOIABC"]:
+            wilcoxon_rows.extend(
+                save_wilcoxon_results(
+                    OUTPUT_DIR / f"wilcoxon_{base_algorithm.lower()}_vs_moiabc_results.csv",
+                    all_results,
+                    base_algorithm=base_algorithm,
+                    improved_algorithm="MOIABC",
+                    metrics=STATISTICAL_TEST_METRICS,
+                )
             )
-        )
     save_rows_to_csv(OUTPUT_DIR / "wilcoxon_test_results.csv", wilcoxon_rows)
     rank_rows = save_average_rank_results(
         OUTPUT_DIR / "average_rank_results.csv",
         all_results,
-        algorithms=[algorithm["name"] for algorithm in ALGORITHMS],
+        algorithms=enabled_algorithm_names,
         metrics=STATISTICAL_TEST_METRICS,
     )
     print_wilcoxon_overview(wilcoxon_rows)

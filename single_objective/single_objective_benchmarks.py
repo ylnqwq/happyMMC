@@ -2,14 +2,24 @@
 
 import numpy as np
 
-from embedded_cec_data import (
-    CEC2017_ROTATION,
-    CEC2017_SHIFT,
-    CEC2022_ROTATION,
-    CEC2022_SHIFT,
-    CEC2022_SHUFFLE,
-    EMBEDDED_DIMENSION,
-)
+try:
+    from .embedded_cec_data import (
+        CEC2017_ROTATION,
+        CEC2017_SHIFT,
+        CEC2022_ROTATION,
+        CEC2022_SHIFT,
+        CEC2022_SHUFFLE,
+        EMBEDDED_DIMENSION,
+    )
+except ImportError:
+    from embedded_cec_data import (
+        CEC2017_ROTATION,
+        CEC2017_SHIFT,
+        CEC2022_ROTATION,
+        CEC2022_SHIFT,
+        CEC2022_SHUFFLE,
+        EMBEDDED_DIMENSION,
+    )
 
 
 PI = np.pi
@@ -462,7 +472,7 @@ def cec2022_f12_composition_7(x):
     return _cf07(x) + 2700.0
 
 
-OFFICIAL_CEC2017_BENCHMARKS = [
+CEC2017_BENCHMARKS = [
     {
         "id": "CEC2017_F1",
         "name": "CEC2017 F1 shifted rotated Bent Cigar function",
@@ -496,7 +506,7 @@ OFFICIAL_CEC2017_BENCHMARKS = [
 ]
 
 
-OFFICIAL_CEC2022_BENCHMARKS = [
+CEC2022_BENCHMARKS = [
     {
         "id": "CEC2022_F1",
         "name": "CEC2022 F1 平移旋转 Zakharov 函数",

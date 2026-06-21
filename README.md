@@ -148,6 +148,7 @@ RUN_TIMES = 1
 BOUNDS = [(-100, 100)] * 10
 ENABLED_SUITES = ["CEC2017", "CEC2022"]
 ENABLED_FUNCTION_IDS = []
+ENABLED_ALGORITHMS = []
 
 COMMON_PARAMS = {
     "bee": 75,
@@ -162,6 +163,7 @@ COMMON_PARAMS = {
 RUN_TIMES = 10
 ENABLED_SUITES = ["CEC2020_MMO"]
 ENABLED_FUNCTION_IDS = []
+ENABLED_ALGORITHMS = []
 
 COMMON_PARAMS = {
     "bee": 75,
@@ -180,6 +182,7 @@ COMMON_PARAMS = {
 - `archive_size`：多目标外部 Pareto 档案最大容量
 - `ENABLED_SUITES`：启用哪些测试集
 - `ENABLED_FUNCTION_IDS`：只运行指定函数；空列表表示运行已启用测试集中的全部函数
+- `ENABLED_ALGORITHMS`：只运行指定算法；空列表表示运行全部算法
 
 只运行 CEC2022 的 F1 和 F6：
 
@@ -200,6 +203,14 @@ ENABLED_FUNCTION_IDS = ["MMF1", "MMF10"]
 ```python
 ENABLED_SUITES = ["ZDT"]
 ENABLED_FUNCTION_IDS = ["ZDT1", "ZDT4"]
+```
+
+只运行指定算法：
+
+```python
+ENABLED_ALGORITHMS = ["ABC", "IABC"]          # 单目标示例
+ENABLED_ALGORITHMS = ["MOABC", "MOIABC"]      # 多目标示例
+ENABLED_ALGORITHMS = ["NSGA-II", "MOPSO"]     # 多目标对比算法示例
 ```
 
 ## 输出文件
@@ -252,7 +263,8 @@ multi_objective/mo_comparison_results/
 
 ## 注意事项
 
-- 当前单目标 CEC 数据只内置了 10 维平移、旋转和打乱数据；如果修改维度，需要补充对应维度的 CEC 数据。
+- 当前单目标 CEC2017/CEC2022 默认使用项目内置的 10 维平移、旋转和打乱数据。
+- 如果修改单目标实验维度，需要补充对应维度的 CEC 数据。
 - 当前部分源码注释和终端中文提示存在乱码，但 Python 语法检查通过，计算逻辑可以正常加载。
 - `RUN_TIMES`、`bee`、`max_iter` 和测试函数数量会直接影响运行时间。
 - CSV 使用 `utf-8-sig` 编码保存，便于用 Excel 打开。

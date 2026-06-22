@@ -18,7 +18,7 @@ if str(MODULE_DIR) not in sys.path:
 
 from multi_objective.algorithms import MOABC, MOIABC, MOPSO, NSGA2, Zhao_IMOABC, Zhou_IMOABC
 from multi_objective.mo_utils import non_dominated_mask, spacing_metric
-from multi_objective.multiobjective_benchmarks import CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
+from multi_objective.multiobjective_benchmarks import ZDT_BENCHMARKS
 from multi_objective.statistical_tests import (
     print_average_rank_overview,
     print_wilcoxon_overview,
@@ -31,9 +31,9 @@ RUN_TIMES = 10
 OUTPUT_DIR = Path(__file__).resolve().parent / "mo_comparison_results"
 
 # 全局测试开关：
-# 1. ENABLED_SUITES 控制要跑哪些测试集，可选 "ZDT"、"CEC2020_MMO"。
+# 1. ENABLED_SUITES 控制要跑哪些测试集，可选 "ZDT"。
 # 2. ENABLED_FUNCTION_IDS 控制要跑哪些具体函数，空列表表示不过滤。
-#    例：只跑 MMF1 和 MMF10 -> ENABLED_FUNCTION_IDS = ["MMF1", "MMF10"]
+#    例：只跑 ZDT1 和 ZDT4 -> ENABLED_FUNCTION_IDS = ["ZDT1", "ZDT4"]
 ENABLED_SUITES = ["ZDT"]
 ENABLED_FUNCTION_IDS = []
 # 可选算法 MOABC, NSGA-II, MOPSO, Zhou-IMOABC, Zhao-IMOABC, MOIABC
@@ -41,7 +41,6 @@ ENABLED_ALGORITHMS = ["MOABC","MOIABC"]
 
 BENCHMARK_SUITES = {
     "ZDT": ZDT_BENCHMARKS,
-    "CEC2020_MMO": CEC2020_MMO_BENCHMARKS,
 }
 
 COMMON_PARAMS = {

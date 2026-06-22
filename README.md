@@ -26,14 +26,13 @@
 - `RUN_TIMES = 1`
 - 维度：10 维
 - 边界：`[-100, 100]`
-- 默认测试集：`CEC2017` 和 `CEC2022`
+- 默认测试集：`CEC2022`
 - 默认算法：全部单目标算法
 - 公共参数：`bee=75, max_iter=750, limit=150`
 - IABC 参数：`tournament_size=3, elite_rate=0.15, elimination_rate=0.15`
 
 当前单目标测试函数：
 
-- `CEC2017`：`CEC2017_F1`, `CEC2017_F3`, `CEC2017_F4`, `CEC2017_F5`, `CEC2017_F6`
 - `CEC2022`：`CEC2022_F1` 到 `CEC2022_F12`
 
 单目标统计指标：
@@ -65,7 +64,6 @@
 当前多目标测试函数：
 
 - `ZDT`：`ZDT1`, `ZDT2`, `ZDT3`, `ZDT4`, `ZDT6`
-- `CEC2020_MMO`：24 个多模态多目标测试函数，包括 `MMF1`, `MMF2`, `MMF4`, `MMF5`, `MMF7`, `MMF8`, `MMF10` 到 `MMF16_L3` 等
 
 多目标统计指标：
 
@@ -84,7 +82,7 @@ GABC/
 |-- single_objective/
 |   |-- compare_abc_gabc.py              # 单目标实验入口
 |   |-- parameter_sensitivity_iabc.py    # IABC 参数敏感性分析
-|   |-- single_objective_benchmarks.py   # CEC2017 / CEC2022 单目标测试函数
+|   |-- single_objective_benchmarks.py   # CEC2022 单目标测试函数
 |   |-- embedded_cec_data.py             # 10 维 CEC 平移、旋转和打乱数据
 |   |-- statistical_tests.py             # Wilcoxon 与平均排名统计
 |   |-- algorithms/
@@ -98,7 +96,7 @@ GABC/
 |
 |-- multi_objective/
 |   |-- compare_moabc_mogabc.py          # 多目标实验入口
-|   |-- multiobjective_benchmarks.py     # ZDT / CEC2020 MMO 测试函数
+|   |-- multiobjective_benchmarks.py     # ZDT 多目标测试函数
 |   |-- mo_utils.py                      # Pareto 排序、拥挤距离、档案维护等工具
 |   |-- statistical_tests.py             # Wilcoxon 与平均排名统计
 |   |-- algorithms/
@@ -175,7 +173,7 @@ python compare_moabc_mogabc.py
 ```python
 RUN_TIMES = 1
 BOUNDS = [(-100, 100)] * 10
-ENABLED_SUITES = ["CEC2017", "CEC2022"]
+ENABLED_SUITES = ["CEC2022"]
 ENABLED_FUNCTION_IDS = []
 ENABLED_ALGORITHMS = []
 
@@ -231,13 +229,6 @@ ENABLED_SUITES = ["ZDT"]
 ENABLED_FUNCTION_IDS = ["ZDT1", "ZDT4"]
 ```
 
-只运行 CEC2020 MMO 的 MMF1 和 MMF10：
-
-```python
-ENABLED_SUITES = ["CEC2020_MMO"]
-ENABLED_FUNCTION_IDS = ["MMF1", "MMF10"]
-```
-
 只运行指定单目标算法：
 
 ```python
@@ -265,7 +256,7 @@ ENABLED_ALGORITHMS = ["NSGA-II", "MOPSO"]
 ```python
 RUN_TIMES = 30
 SEED_BASE = 20240621
-ENABLED_SUITES = ["CEC2017", "CEC2022"]
+ENABLED_SUITES = ["CEC2022"]
 
 ELITE_RATES = [0.05, 0.10, 0.15, 0.20, 0.25]
 ELIMINATION_RATES = [0.05, 0.10, 0.15, 0.20, 0.25]
@@ -342,7 +333,7 @@ multi_objective/mo_comparison_results/
 
 ## 注意事项
 
-- 单目标 CEC2017/CEC2022 当前使用项目内置的 10 维平移、旋转和打乱数据。
+- 单目标 CEC2022 当前使用项目内置的 10 维平移、旋转和打乱数据。
 - 如果修改单目标实验维度，需要补充对应维度的 CEC 数据。
 - `CEC2022` 单目标测试集当前为 12 个函数，即 `CEC2022_F1` 到 `CEC2022_F12`。
 - `RUN_TIMES = 1` 只适合快速调试；正式实验建议使用 30 次或更多独立运行。

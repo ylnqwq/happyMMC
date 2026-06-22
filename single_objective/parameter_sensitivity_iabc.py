@@ -15,7 +15,7 @@ if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
 from single_objective.algorithms import IABC
-from single_objective.single_objective_benchmarks import CEC2017_BENCHMARKS, CEC2022_BENCHMARKS
+from single_objective.single_objective_benchmarks import CEC2022_BENCHMARKS
 
 
 RUN_TIMES = 30
@@ -23,11 +23,10 @@ SEED_BASE = 20240621
 BOUNDS = [(-100, 100)] * 10
 OUTPUT_DIR = MODULE_DIR / "sensitivity_results"
 
-ENABLED_SUITES = ["CEC2017", "CEC2022"]
+ENABLED_SUITES = ["CEC2022"]
 ENABLED_FUNCTION_IDS = []
 
 BENCHMARK_SUITES = {
-    "CEC2017": CEC2017_BENCHMARKS,
     "CEC2022": CEC2022_BENCHMARKS,
 }
 

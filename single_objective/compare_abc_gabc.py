@@ -16,7 +16,7 @@ if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
 from single_objective.algorithms import ABC, ACO, GA, IABC, IABC_MSS, NDBP_ABC
-from single_objective.single_objective_benchmarks import CEC2017_BENCHMARKS, CEC2022_BENCHMARKS
+from single_objective.single_objective_benchmarks import CEC2022_BENCHMARKS
 from single_objective.statistical_tests import (
     print_average_rank_overview,
     print_wilcoxon_overview,
@@ -30,17 +30,16 @@ BOUNDS = [(-100, 100)] * 10
 OUTPUT_DIR = Path(__file__).resolve().parent / "comparison_results"
 
 # 全局测试开关：
-# 1. ENABLED_SUITES 控制要跑哪些测试集，可选 "CEC2017"、"CEC2022"。
+# 1. ENABLED_SUITES 控制要跑哪些测试集，可选 "CEC2022"。
 #    例：只跑 CEC2022 -> ENABLED_SUITES = ["CEC2022"]
 # 2. ENABLED_FUNCTION_IDS 控制要跑哪些具体函数，空列表表示不过滤。
 #    例：只跑 CEC2022_F1 和 CEC2022_F6 -> ENABLED_FUNCTION_IDS = ["CEC2022_F1", "CEC2022_F6"]
-ENABLED_SUITES = ["CEC2017","CEC2022"]
+ENABLED_SUITES = ["CEC2022"]
 ENABLED_FUNCTION_IDS = []
 # 可选算法 ABC, GA, ACO, IABC-MSS, NDBP-ABC, IABC
 ENABLED_ALGORITHMS = []
 
 BENCHMARK_SUITES = {
-    "CEC2017": CEC2017_BENCHMARKS,
     "CEC2022": CEC2022_BENCHMARKS,
 }
 

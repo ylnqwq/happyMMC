@@ -4,8 +4,6 @@ import numpy as np
 
 try:
     from .embedded_cec_data import (
-        CEC2017_ROTATION,
-        CEC2017_SHIFT,
         CEC2022_ROTATION,
         CEC2022_SHIFT,
         CEC2022_SHUFFLE,
@@ -13,8 +11,6 @@ try:
     )
 except ImportError:
     from embedded_cec_data import (
-        CEC2017_ROTATION,
-        CEC2017_SHIFT,
         CEC2022_ROTATION,
         CEC2022_SHIFT,
         CEC2022_SHUFFLE,
@@ -28,74 +24,12 @@ INF = 1.0e99
 _CACHE = {}
 
 
-_CEC2017_CACHE = {}
-
-
 def _ensure_embedded_dimension(dimension):
     if dimension != EMBEDDED_DIMENSION:
         raise ValueError(
             f"Embedded CEC data only supports {EMBEDDED_DIMENSION} dimensions, "
             f"but got {dimension}."
         )
-
-
-def _load_cec2017_shift(func_num, dimension):
-    _ensure_embedded_dimension(dimension)
-    key = ("shift", func_num, dimension)
-    if key not in _CEC2017_CACHE:
-        data = np.asarray(CEC2017_SHIFT[func_num], dtype=float).ravel()
-        _CEC2017_CACHE[key] = data[:dimension]
-    return _CEC2017_CACHE[key]
-
-
-def _load_cec2017_rotation(func_num, dimension):
-    _ensure_embedded_dimension(dimension)
-    key = ("rotation", func_num, dimension)
-    if key not in _CEC2017_CACHE:
-        data = np.asarray(CEC2017_ROTATION[func_num], dtype=float)
-        _CEC2017_CACHE[key] = data.reshape(dimension, dimension)
-    return _CEC2017_CACHE[key]
-
-
-def _cec2017_shift_rotate(x, func_num, shift_rate):
-    x = np.asarray(x, dtype=float)
-    dimension = len(x)
-    shift = _load_cec2017_shift(func_num, dimension)
-    rotation = _load_cec2017_rotation(func_num, dimension)
-    return rotation @ ((x - shift) * shift_rate)
-
-
-def cec2017_f1_bent_cigar(x):
-    z = _cec2017_shift_rotate(x, func_num=1, shift_rate=1.0)
-    return z[0] ** 2 + 1.0e6 * np.sum(z[1:] ** 2) + 100.0
-
-
-def cec2017_f3_zakharov(x):
-    z = _cec2017_shift_rotate(x, func_num=3, shift_rate=1.0)
-    index = np.arange(1, len(z) + 1)
-    sum1 = np.sum(z**2)
-    sum2 = np.sum(0.5 * index * z)
-    return sum1 + sum2**2 + sum2**4 + 300.0
-
-
-def cec2017_f4_rosenbrock(x):
-    z = _cec2017_shift_rotate(x, func_num=4, shift_rate=2.048 / 100.0)
-    z = z + 1.0
-    return np.sum(100.0 * (z[:-1] ** 2 - z[1:]) ** 2 + (z[:-1] - 1.0) ** 2) + 400.0
-
-
-def cec2017_f5_rastrigin(x):
-    z = _cec2017_shift_rotate(x, func_num=5, shift_rate=5.12 / 100.0)
-    return np.sum(z**2 - 10.0 * np.cos(2.0 * PI * z) + 10.0) + 500.0
-
-
-def cec2017_f6_schaffer_f7(x):
-    y = np.asarray(x, dtype=float) - _load_cec2017_shift(func_num=6, dimension=len(x))
-    rotation = _load_cec2017_rotation(func_num=6, dimension=len(x))
-    z = rotation @ y
-    pair_radius = np.sqrt(z[:-1] ** 2 + z[1:] ** 2)
-    terms = np.sqrt(pair_radius) * (1.0 + np.sin(50.0 * pair_radius**0.2) ** 2)
-    return (np.sum(terms) / (len(x) - 1)) ** 2 + 600.0
 
 
 def _load_shift(func_num, dimension):
@@ -470,40 +404,6 @@ def cec2022_f11_composition_6(x):
 
 def cec2022_f12_composition_7(x):
     return _cf07(x) + 2700.0
-
-
-CEC2017_BENCHMARKS = [
-    {
-        "id": "CEC2017_F1",
-        "name": "CEC2017 F1 shifted rotated Bent Cigar function",
-        "function": cec2017_f1_bent_cigar,
-        "optimal_value": 100.0,
-    },
-    {
-        "id": "CEC2017_F3",
-        "name": "CEC2017 F3 shifted rotated Zakharov function",
-        "function": cec2017_f3_zakharov,
-        "optimal_value": 300.0,
-    },
-    {
-        "id": "CEC2017_F4",
-        "name": "CEC2017 F4 shifted rotated Rosenbrock function",
-        "function": cec2017_f4_rosenbrock,
-        "optimal_value": 400.0,
-    },
-    {
-        "id": "CEC2017_F5",
-        "name": "CEC2017 F5 shifted rotated Rastrigin function",
-        "function": cec2017_f5_rastrigin,
-        "optimal_value": 500.0,
-    },
-    {
-        "id": "CEC2017_F6",
-        "name": "CEC2017 F6 shifted rotated Schaffer's F7 function",
-        "function": cec2017_f6_schaffer_f7,
-        "optimal_value": 600.0,
-    },
-]
 
 
 CEC2022_BENCHMARKS = [

@@ -100,7 +100,7 @@ ALGORITHMS = [
         "params": {
             **COMMON_PARAMS,
             "tournament_size": 3,
-            "elite_rate": 0.15,
+            "elite_rate": 0.25,
             "elimination_rate": 0.15,
         },
     },

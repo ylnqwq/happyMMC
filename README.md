@@ -29,7 +29,7 @@
 - 默认测试集：`CEC2022`
 - 默认算法：全部单目标算法
 - 公共参数：`bee=75, max_iter=750, limit=150`
-- IABC 参数：`tournament_size=3, elite_rate=0.15, elimination_rate=0.15`
+- IABC 参数：`tournament_size=3, elite_rate=0.25, elimination_rate=0.15`
 
 当前单目标测试函数：
 

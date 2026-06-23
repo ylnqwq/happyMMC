@@ -147,6 +147,21 @@ python single_objective\compare_abc_gabc.py
 python multi_objective\compare_moabc_mogabc.py
 ```
 
+在多核服务器上运行多目标实验时，可以开启并行并关闭图像和档案点导出以减少运行时间和磁盘 I/O：
+
+```bash
+set MO_PARALLEL_WORKERS=8
+set MO_SAVE_PLOTS=0
+set MO_SAVE_ARCHIVE_POINTS=0
+python multi_objective\compare_moabc_mogabc.py
+```
+
+Linux 服务器可使用：
+
+```bash
+MO_PARALLEL_WORKERS=8 MO_SAVE_PLOTS=0 MO_SAVE_ARCHIVE_POINTS=0 python multi_objective/compare_moabc_mogabc.py
+```
+
 运行 IABC 参数敏感性分析：
 
 ```bash

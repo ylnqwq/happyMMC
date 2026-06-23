@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import csv
+import os
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -29,6 +31,9 @@ from multi_objective.statistical_tests import (
 
 RUN_TIMES = 10
 OUTPUT_DIR = Path(__file__).resolve().parent / "mo_comparison_results"
+PARALLEL_WORKERS = int(os.environ.get("MO_PARALLEL_WORKERS", "0"))
+SAVE_ARCHIVE_POINTS = os.environ.get("MO_SAVE_ARCHIVE_POINTS", "1") != "0"
+SAVE_PLOTS = os.environ.get("MO_SAVE_PLOTS", "1") != "0"
 
 # 全局测试开关：
 # 1. ENABLED_SUITES 控制要跑哪些测试集，可选 "ZDT"、"CEC2020_MMO"。
@@ -196,6 +201,13 @@ def run_algorithm(algorithm, benchmark, seed):
         "time": elapsed_time,
         "history": history,
     }
+
+
+def run_algorithm_task(task):
+    algorithm, benchmark, seed, run_index = task
+    result = run_algorithm(algorithm, benchmark, seed)
+    result["run_index"] = run_index
+    return result
 
 
 def calculate_statistics(results):
@@ -412,6 +424,9 @@ def print_run_configuration(benchmarks, algorithms):
     print(f"算法数量: {len(algorithms)}")
     print(f"算法: {', '.join(algorithm['name'] for algorithm in algorithms)}")
     print(f"独立运行次数: {RUN_TIMES}")
+    print(f"并行进程数: {'auto' if PARALLEL_WORKERS <= 0 else PARALLEL_WORKERS}")
+    print(f"保存档案点: {'是' if SAVE_ARCHIVE_POINTS else '否'}")
+    print(f"保存图像: {'是' if SAVE_PLOTS else '否'}")
     print(
         "公共参数: "
         f"bee={COMMON_PARAMS['bee']}, "
@@ -431,26 +446,44 @@ def print_progress(current, total, prefix="", width=32):
 def run_benchmark(benchmark, algorithms):
     seeds = np.random.SeedSequence().generate_state(RUN_TIMES)
     grouped_results = {algorithm["name"]: [] for algorithm in algorithms}
+    tasks = []
 
     print("\n" + "=" * 80)
     print(f"开始测试: {benchmark['name']}")
-    print_progress(0, RUN_TIMES, prefix=benchmark["id"])
+    total_tasks = RUN_TIMES * len(algorithms)
+    print_progress(0, total_tasks, prefix=benchmark["id"])
 
     for run_index, seed in enumerate(seeds, start=1):
         seed = int(seed)
-
         for algorithm in algorithms:
-            result = run_algorithm(algorithm, benchmark, seed)
-            grouped_results[algorithm["name"]].append(result)
+            tasks.append((algorithm, benchmark, seed, run_index))
 
-        print_progress(run_index, RUN_TIMES, prefix=benchmark["id"])
+    worker_count = PARALLEL_WORKERS if PARALLEL_WORKERS > 0 else min(len(tasks), os.cpu_count() or 1)
+    if worker_count <= 1:
+        for task_index, task in enumerate(tasks, start=1):
+            result = run_algorithm_task(task)
+            grouped_results[result["algorithm"]].append(result)
+            print_progress(task_index, total_tasks, prefix=benchmark["id"])
+    else:
+        done = 0
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            futures = [executor.submit(run_algorithm_task, task) for task in tasks]
+            for future in as_completed(futures):
+                result = future.result()
+                grouped_results[result["algorithm"]].append(result)
+                done += 1
+                print_progress(done, total_tasks, prefix=benchmark["id"])
 
     print()
+    for results in grouped_results.values():
+        results.sort(key=lambda item: item["run_index"])
 
     print_statistics(benchmark, grouped_results)
     save_results_to_csv(OUTPUT_DIR / f"{benchmark['id'].lower()}_results.csv", grouped_results)
-    save_archive_points(OUTPUT_DIR / f"{benchmark['id'].lower()}_archive_points.csv", grouped_results)
-    save_plots(grouped_results, benchmark)
+    if SAVE_ARCHIVE_POINTS:
+        save_archive_points(OUTPUT_DIR / f"{benchmark['id'].lower()}_archive_points.csv", grouped_results)
+    if SAVE_PLOTS:
+        save_plots(grouped_results, benchmark)
     return grouped_results
 
 

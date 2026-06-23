@@ -17,18 +17,19 @@ if str(MODULE_DIR) not in sys.path:
 from multi_objective.algorithms import MOIABC
 from multi_objective.compare_moabc_mogabc import calculate_hypervolume
 from multi_objective.mo_utils import spacing_metric
-from multi_objective.multiobjective_benchmarks import ZDT_BENCHMARKS
+from multi_objective.multiobjective_benchmarks import CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
 
 
 RUN_TIMES = 30
 SEED_BASE = 20240621
 OUTPUT_DIR = MODULE_DIR / "moiabc_sensitivity_results"
 
-ENABLED_SUITES = ["ZDT"]
+ENABLED_SUITES = ["ZDT", "CEC2020_MMO"]
 ENABLED_FUNCTION_IDS = []
 
 BENCHMARK_SUITES = {
     "ZDT": ZDT_BENCHMARKS,
+    "CEC2020_MMO": CEC2020_MMO_BENCHMARKS,
 }
 
 COMMON_PARAMS = {

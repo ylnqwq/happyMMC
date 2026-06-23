@@ -56,7 +56,7 @@
 当前默认配置：
 
 - `RUN_TIMES = 10`
-- 默认测试集：`ZDT`
+- 默认测试集：`ZDT` 和完整 `CEC2020_MMO`
 - 默认算法：`MOABC`, `MOIABC`
 - 公共参数：`bee=75, max_iter=750, limit=150, archive_size=100`
 - MOIABC 参数：`tournament_size=3, elite_rate=0.15, elimination_rate=0.15`
@@ -64,6 +64,7 @@
 当前多目标测试函数：
 
 - `ZDT`：`ZDT1`, `ZDT2`, `ZDT3`, `ZDT4`, `ZDT6`
+- `CEC2020_MMO`：完整启用 24 个 MMF 测试函数，包括 `MMF1`, `MMF2`, `MMF4`, `MMF5`, `MMF7`, `MMF8`, `MMF10` 到 `MMF16_L3` 等
 
 多目标统计指标：
 
@@ -96,7 +97,7 @@ GABC/
 |
 |-- multi_objective/
 |   |-- compare_moabc_mogabc.py          # 多目标实验入口
-|   |-- multiobjective_benchmarks.py     # ZDT 多目标测试函数
+|   |-- multiobjective_benchmarks.py     # ZDT / CEC2020 MMO 多目标测试函数
 |   |-- mo_utils.py                      # Pareto 排序、拥挤距离、档案维护等工具
 |   |-- statistical_tests.py             # Wilcoxon 与平均排名统计
 |   |-- algorithms/
@@ -190,7 +191,7 @@ COMMON_PARAMS = {
 
 ```python
 RUN_TIMES = 10
-ENABLED_SUITES = ["ZDT"]
+ENABLED_SUITES = ["ZDT", "CEC2020_MMO"]
 ENABLED_FUNCTION_IDS = []
 ENABLED_ALGORITHMS = ["MOABC", "MOIABC"]
 
@@ -227,6 +228,13 @@ ENABLED_FUNCTION_IDS = ["CEC2022_F1", "CEC2022_F6"]
 ```python
 ENABLED_SUITES = ["ZDT"]
 ENABLED_FUNCTION_IDS = ["ZDT1", "ZDT4"]
+```
+
+只运行部分 CEC2020 MMO 函数：
+
+```python
+ENABLED_SUITES = ["CEC2020_MMO"]
+ENABLED_FUNCTION_IDS = ["MMF1", "MMF10", "MMF14"]
 ```
 
 只运行指定单目标算法：

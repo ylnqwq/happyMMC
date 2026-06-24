@@ -1,6 +1,10 @@
 # Experiment outputs
 /结果/
 /single_objective/comparison_results/
+/single_objective/sensitivity_results/
+/single_objective/sensitivity_results*.zip
+/multi_objective/moiabc_sensitivity_results/
+/multi_objective/moiabc_sensitivity_results*.zip
 /multi_objective/mo_comparison_results/
 
 # Python cache

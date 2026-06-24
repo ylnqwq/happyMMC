@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/GABC.iml" filepath="$PROJECT_DIR$/.idea/GABC.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/IABC.iml" filepath="$PROJECT_DIR$/.idea/IABC.iml" />
     </modules>
   </component>
 </project>

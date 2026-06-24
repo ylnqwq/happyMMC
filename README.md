@@ -4,8 +4,8 @@
 
 主要入口：
 
-- 单目标实验：`single_objective/compare_abc_gabc.py`
-- 多目标实验：`multi_objective/compare_moabc_mogabc.py`
+- 单目标实验：`single_objective/compare_abc_iabc.py`
+- 多目标实验：`multi_objective/compare_moabc_moiabc.py`
 - IABC 参数敏感性分析：`single_objective/parameter_sensitivity_iabc.py`
 
 ## 当前实验内容
@@ -79,9 +79,9 @@
 ## 项目结构
 
 ```text
-GABC/
+IABC/
 |-- single_objective/
-|   |-- compare_abc_gabc.py              # 单目标实验入口
+|   |-- compare_abc_iabc.py              # 单目标实验入口
 |   |-- parameter_sensitivity_iabc.py    # IABC 参数敏感性分析
 |   |-- single_objective_benchmarks.py   # CEC2022 单目标测试函数
 |   |-- embedded_cec_data.py             # 10 维 CEC 平移、旋转和打乱数据
@@ -96,7 +96,7 @@ GABC/
 |   `-- comparison_results/              # 单目标实验输出目录
 |
 |-- multi_objective/
-|   |-- compare_moabc_mogabc.py          # 多目标实验入口
+|   |-- compare_moabc_moiabc.py          # 多目标实验入口
 |   |-- multiobjective_benchmarks.py     # ZDT / CEC2020 MMO 多目标测试函数
 |   |-- mo_utils.py                      # Pareto 排序、拥挤距离、档案维护等工具
 |   |-- statistical_tests.py             # Wilcoxon 与平均排名统计
@@ -138,13 +138,13 @@ pip install numpy matplotlib
 在项目根目录运行单目标实验：
 
 ```bash
-python single_objective\compare_abc_gabc.py
+python single_objective\compare_abc_iabc.py
 ```
 
 在项目根目录运行多目标实验：
 
 ```bash
-python multi_objective\compare_moabc_mogabc.py
+python multi_objective\compare_moabc_moiabc.py
 ```
 
 在多核服务器上运行多目标实验时，可以开启并行并关闭图像和档案点导出以减少运行时间和磁盘 I/O：
@@ -153,13 +153,13 @@ python multi_objective\compare_moabc_mogabc.py
 set MO_PARALLEL_WORKERS=8
 set MO_SAVE_PLOTS=0
 set MO_SAVE_ARCHIVE_POINTS=0
-python multi_objective\compare_moabc_mogabc.py
+python multi_objective\compare_moabc_moiabc.py
 ```
 
 Linux 服务器可使用：
 
 ```bash
-MO_PARALLEL_WORKERS=8 MO_SAVE_PLOTS=0 MO_SAVE_ARCHIVE_POINTS=0 python multi_objective/compare_moabc_mogabc.py
+MO_PARALLEL_WORKERS=8 MO_SAVE_PLOTS=0 MO_SAVE_ARCHIVE_POINTS=0 python multi_objective/compare_moabc_moiabc.py
 ```
 
 运行 IABC 参数敏感性分析：
@@ -172,19 +172,19 @@ python single_objective\parameter_sensitivity_iabc.py
 
 ```bash
 cd single_objective
-python compare_abc_gabc.py
+python compare_abc_iabc.py
 ```
 
 ```bash
 cd multi_objective
-python compare_moabc_mogabc.py
+python compare_moabc_moiabc.py
 ```
 
 ## 参数配置
 
 ### 单目标参数
 
-在 `single_objective/compare_abc_gabc.py` 中修改：
+在 `single_objective/compare_abc_iabc.py` 中修改：
 
 ```python
 RUN_TIMES = 1
@@ -202,7 +202,7 @@ COMMON_PARAMS = {
 
 ### 多目标参数
 
-在 `multi_objective/compare_moabc_mogabc.py` 中修改：
+在 `multi_objective/compare_moabc_moiabc.py` 中修改：
 
 ```python
 RUN_TIMES = 10

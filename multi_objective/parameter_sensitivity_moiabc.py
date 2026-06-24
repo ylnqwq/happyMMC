@@ -17,7 +17,7 @@ if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
 from multi_objective.algorithms import MOIABC
-from multi_objective.compare_moabc_mogabc import calculate_hypervolume
+from multi_objective.compare_moabc_moiabc import calculate_hypervolume
 from multi_objective.mo_utils import spacing_metric
 from multi_objective.multiobjective_benchmarks import CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
 

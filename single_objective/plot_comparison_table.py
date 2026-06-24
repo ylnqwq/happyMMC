@@ -13,7 +13,7 @@ import numpy as np
 
 DEFAULT_RESULT_DIR = Path("结果") / "2026.6.15单目标-前0.15后0.15-200轮"
 FALLBACK_RESULT_DIR = Path("single_objective") / "comparison_results"
-DEFAULT_ALGORITHM_ORDER = ["ABC", "GA", "ACO", "IABC-MSS", "NDBP-ABC", "GABC", "IABC"]
+DEFAULT_ALGORITHM_ORDER = ["ABC", "GA", "ACO", "IABC-MSS", "NDBP-ABC", "IABC"]
 
 
 def configure_fonts():
@@ -71,7 +71,7 @@ def parse_args():
     parser.add_argument(
         "--target",
         default=None,
-        help="Improved algorithm used for +/-/= marks. Default: IABC if present, otherwise GABC if present.",
+        help="Improved algorithm used for +/-/= marks. Default: IABC if present.",
     )
     parser.add_argument(
         "--title",
@@ -184,8 +184,6 @@ def choose_target(algorithms, explicit_target):
         return explicit_target
     if "IABC" in algorithms:
         return "IABC"
-    if "GABC" in algorithms:
-        return "GABC"
     return algorithms[-1]
 
 

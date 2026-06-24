@@ -4,9 +4,9 @@
 
 主要入口：
 
-- 单目标实验：`single_objective/compare_abc_iabc.py`
-- 多目标实验：`multi_objective/compare_moabc_moiabc.py`
-- IABC 参数敏感性分析：`single_objective/parameter_sensitivity_iabc.py`
+- 单目标实验：`single_objective/run_single_objective_comparison.py`
+- 多目标实验：`multi_objective/run_multi_objective_comparison.py`
+- IABC 参数敏感性分析：`single_objective/run_iabc_sensitivity.py`
 
 ## 当前实验内容
 
@@ -81,8 +81,8 @@
 ```text
 IABC/
 |-- single_objective/
-|   |-- compare_abc_iabc.py              # 单目标实验入口
-|   |-- parameter_sensitivity_iabc.py    # IABC 参数敏感性分析
+|   |-- run_single_objective_comparison.py              # 单目标实验入口
+|   |-- run_iabc_sensitivity.py    # IABC 参数敏感性分析
 |   |-- single_objective_benchmarks.py   # CEC2022 单目标测试函数
 |   |-- embedded_cec_data.py             # 10 维 CEC 平移、旋转和打乱数据
 |   |-- statistical_tests.py             # Wilcoxon 与平均排名统计
@@ -96,7 +96,7 @@ IABC/
 |   `-- comparison_results/              # 单目标实验输出目录
 |
 |-- multi_objective/
-|   |-- compare_moabc_moiabc.py          # 多目标实验入口
+|   |-- run_multi_objective_comparison.py          # 多目标实验入口
 |   |-- multiobjective_benchmarks.py     # ZDT / CEC2020 MMO 多目标测试函数
 |   |-- mo_utils.py                      # Pareto 排序、拥挤距离、档案维护等工具
 |   |-- statistical_tests.py             # Wilcoxon 与平均排名统计
@@ -138,13 +138,13 @@ pip install numpy matplotlib
 在项目根目录运行单目标实验：
 
 ```bash
-python single_objective\compare_abc_iabc.py
+python single_objective\run_single_objective_comparison.py
 ```
 
 在项目根目录运行多目标实验：
 
 ```bash
-python multi_objective\compare_moabc_moiabc.py
+python multi_objective\run_multi_objective_comparison.py
 ```
 
 在多核服务器上运行多目标实验时，可以开启并行并关闭图像和档案点导出以减少运行时间和磁盘 I/O：
@@ -153,38 +153,38 @@ python multi_objective\compare_moabc_moiabc.py
 set MO_PARALLEL_WORKERS=8
 set MO_SAVE_PLOTS=0
 set MO_SAVE_ARCHIVE_POINTS=0
-python multi_objective\compare_moabc_moiabc.py
+python multi_objective\run_multi_objective_comparison.py
 ```
 
 Linux 服务器可使用：
 
 ```bash
-MO_PARALLEL_WORKERS=8 MO_SAVE_PLOTS=0 MO_SAVE_ARCHIVE_POINTS=0 python multi_objective/compare_moabc_moiabc.py
+MO_PARALLEL_WORKERS=8 MO_SAVE_PLOTS=0 MO_SAVE_ARCHIVE_POINTS=0 python multi_objective/run_multi_objective_comparison.py
 ```
 
 运行 IABC 参数敏感性分析：
 
 ```bash
-python single_objective\parameter_sensitivity_iabc.py
+python single_objective\run_iabc_sensitivity.py
 ```
 
 也可以进入子目录后运行：
 
 ```bash
 cd single_objective
-python compare_abc_iabc.py
+python run_single_objective_comparison.py
 ```
 
 ```bash
 cd multi_objective
-python compare_moabc_moiabc.py
+python run_multi_objective_comparison.py
 ```
 
 ## 参数配置
 
 ### 单目标参数
 
-在 `single_objective/compare_abc_iabc.py` 中修改：
+在 `single_objective/run_single_objective_comparison.py` 中修改：
 
 ```python
 RUN_TIMES = 1
@@ -202,7 +202,7 @@ COMMON_PARAMS = {
 
 ### 多目标参数
 
-在 `multi_objective/compare_moabc_moiabc.py` 中修改：
+在 `multi_objective/run_multi_objective_comparison.py` 中修改：
 
 ```python
 RUN_TIMES = 10
@@ -272,7 +272,7 @@ ENABLED_ALGORITHMS = ["NSGA-II", "MOPSO"]
 
 ## IABC 参数敏感性分析
 
-敏感性分析脚本位于 `single_objective/parameter_sensitivity_iabc.py`。
+敏感性分析脚本位于 `single_objective/run_iabc_sensitivity.py`。
 
 默认扫描：
 

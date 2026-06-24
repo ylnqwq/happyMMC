@@ -141,6 +141,14 @@ pip install numpy matplotlib
 python single_objective\run_single_objective_comparison.py
 ```
 
+Windows PowerShell 4-core server command:
+
+```powershell
+$env:SO_PARALLEL_WORKERS="4"
+$env:SO_SAVE_PLOTS="0"
+python single_objective\run_single_objective_comparison.py
+```
+
 在项目根目录运行多目标实验：
 
 ```bash

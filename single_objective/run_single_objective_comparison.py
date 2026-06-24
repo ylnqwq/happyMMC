@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import csv
+import os
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -28,6 +30,8 @@ from single_objective.statistical_tests import (
 RUN_TIMES = 1
 BOUNDS = [(-100, 100)] * 10
 OUTPUT_DIR = Path(__file__).resolve().parent / "comparison_results"
+PARALLEL_WORKERS = int(os.environ.get("SO_PARALLEL_WORKERS", "0"))
+SAVE_PLOTS = os.environ.get("SO_SAVE_PLOTS", "1") != "0"
 
 # 全局测试开关：
 # 1. ENABLED_SUITES 控制要跑哪些测试集，可选 "CEC2022"。
@@ -143,6 +147,13 @@ def run_algorithm(algorithm, benchmark, seed):
     }
 
 
+def run_algorithm_task(task):
+    algorithm, benchmark, seed, run_index = task
+    result = run_algorithm(algorithm, benchmark, seed)
+    result["run_index"] = run_index
+    return result
+
+
 def calculate_statistics(results):
     best_values = np.array([item["best_value"] for item in results], dtype=float)
     errors = np.array([item["error"] for item in results], dtype=float)
@@ -195,7 +206,7 @@ def save_results_to_csv(filename, grouped_results):
         for run_index, item in enumerate(results, start=1):
             rows.append(
                 {
-                    "run": run_index,
+                    "run": item.get("run_index", run_index),
                     "benchmark_id": item["benchmark_id"],
                     "benchmark_name": item["benchmark_name"],
                     "algorithm": item["algorithm"],
@@ -325,22 +336,24 @@ def get_enabled_algorithms():
     return algorithms
 
 
+
 def print_run_configuration(benchmarks, algorithms):
     print("\n" + "=" * 80)
-    print("单目标实验运行配置")
-    print(f"测试集: {', '.join(ENABLED_SUITES)}")
-    print(f"测试函数数量: {len(benchmarks)}")
-    print(f"测试函数: {', '.join(benchmark['id'] for benchmark in benchmarks)}")
-    print(f"算法数量: {len(algorithms)}")
-    print(f"算法: {', '.join(algorithm['name'] for algorithm in algorithms)}")
-    print(f"独立运行次数: {RUN_TIMES}")
+    print("Single-objective experiment configuration")
+    print(f"Suites: {', '.join(ENABLED_SUITES)}")
+    print(f"Benchmark count: {len(benchmarks)}")
+    print(f"Benchmarks: {', '.join(benchmark['id'] for benchmark in benchmarks)}")
+    print(f"Algorithm count: {len(algorithms)}")
+    print(f"Algorithms: {', '.join(algorithm['name'] for algorithm in algorithms)}")
+    print(f"Run times: {RUN_TIMES}")
+    print(f"Parallel workers: {'auto' if PARALLEL_WORKERS <= 0 else PARALLEL_WORKERS}")
+    print(f"Save plots: {'yes' if SAVE_PLOTS else 'no'}")
     print(
-        "公共参数: "
+        "Common params: "
         f"bee={COMMON_PARAMS['bee']}, "
         f"max_iter={COMMON_PARAMS['max_iter']}, "
         f"limit={COMMON_PARAMS['limit']}"
     )
-
 
 def print_progress(current, total, prefix="", width=32):
     ratio = current / total
@@ -349,30 +362,47 @@ def print_progress(current, total, prefix="", width=32):
     print(f"\r{prefix} [{bar}] {current}/{total} {ratio * 100:6.2f}%", end="", flush=True)
 
 
+
 def run_benchmark(benchmark, algorithms):
     seeds = np.random.SeedSequence().generate_state(RUN_TIMES)
     grouped_results = {algorithm["name"]: [] for algorithm in algorithms}
+    tasks = [
+        (algorithm, benchmark, int(seed), run_index)
+        for run_index, seed in enumerate(seeds, start=1)
+        for algorithm in algorithms
+    ]
+    total_tasks = len(tasks)
 
     print("\n" + "=" * 80)
-    print(f"开始测试: {benchmark['name']}")
-    print_progress(0, RUN_TIMES, prefix=benchmark["id"])
+    print(f"Starting benchmark: {benchmark['name']}")
+    print_progress(0, total_tasks, prefix=benchmark["id"])
 
-    for run_index, seed in enumerate(seeds, start=1):
-        seed = int(seed)
-
-        for algorithm in algorithms:
-            result = run_algorithm(algorithm, benchmark, seed)
-            grouped_results[algorithm["name"]].append(result)
-
-        print_progress(run_index, RUN_TIMES, prefix=benchmark["id"])
+    worker_count = PARALLEL_WORKERS if PARALLEL_WORKERS > 0 else min(total_tasks, os.cpu_count() or 1)
+    if worker_count <= 1:
+        for task_index, task in enumerate(tasks, start=1):
+            result = run_algorithm_task(task)
+            grouped_results[result["algorithm"]].append(result)
+            print_progress(task_index, total_tasks, prefix=benchmark["id"])
+    else:
+        completed = 0
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            futures = [executor.submit(run_algorithm_task, task) for task in tasks]
+            for future in as_completed(futures):
+                result = future.result()
+                grouped_results[result["algorithm"]].append(result)
+                completed += 1
+                print_progress(completed, total_tasks, prefix=benchmark["id"])
 
     print()
 
+    for algorithm_name in grouped_results:
+        grouped_results[algorithm_name].sort(key=lambda item: item.get("run_index", 0))
+
     print_statistics(benchmark, grouped_results)
     save_results_to_csv(OUTPUT_DIR / f"{benchmark['id'].lower()}_results.csv", grouped_results)
-    save_plots(grouped_results, benchmark)
+    if SAVE_PLOTS:
+        save_plots(grouped_results, benchmark)
     return grouped_results
-
 
 def main():
     OUTPUT_DIR.mkdir(exist_ok=True)

@@ -79,6 +79,16 @@ def parse_args():
         help="Table title.",
     )
     parser.add_argument(
+        "--no-title",
+        action="store_true",
+        help="Do not draw the table title.",
+    )
+    parser.add_argument(
+        "--no-note",
+        action="store_true",
+        help="Do not draw the table note.",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
@@ -127,6 +137,8 @@ def format_scientific(value):
 
 
 def relation_mark(mean_value, target_mean, tolerance=1e-12):
+    if format_scientific(mean_value) == format_scientific(target_mean):
+        return "="
     if math.isclose(mean_value, target_mean, rel_tol=1e-10, abs_tol=tolerance):
         return "="
     if mean_value > target_mean:
@@ -134,13 +146,18 @@ def relation_mark(mean_value, target_mean, tolerance=1e-12):
     return "-"
 
 
+def displayed_equal(left, right):
+    return format_scientific(left) == format_scientific(right)
+
+
 def read_result_rows(input_dir, suite):
     rows = []
     for csv_path in sorted(input_dir.glob("*_results.csv")):
-        if csv_path.name in {"average_rank_results.csv", "wilcoxon_test_results.csv"}:
-            continue
         with csv_path.open("r", encoding="utf-8-sig", newline="") as file:
             reader = csv.DictReader(file)
+            fieldnames = set(reader.fieldnames or [])
+            if not {"benchmark_id", "algorithm", "best_value", "error"}.issubset(fieldnames):
+                continue
             for row in reader:
                 benchmark_id = row.get("benchmark_id", "")
                 if suite != "all" and not benchmark_id.startswith(f"{suite}_"):
@@ -208,51 +225,56 @@ def write_summary_csv(summary, benchmark_ids, algorithms, target_algorithm, outp
             writer.writerow(row)
 
 
-def draw_table(summary, benchmark_ids, algorithms, target_algorithm, output_path, title):
+def draw_table(summary, benchmark_ids, algorithms, target_algorithm, output_path, title, show_title=True, show_note=True):
     column_count = len(algorithms) + 1
     benchmark_count = len(benchmark_ids)
-    cell_widths = [0.9] + [2.25] * len(algorithms)
+    cell_widths = [0.56] + [1.18] * len(algorithms)
     total_width = sum(cell_widths)
-    fig_width = max(10.0, total_width * 0.95)
-    fig_height = max(3.8, 1.7 + benchmark_count * 0.34)
+    fig_width = max(6.9, total_width * 0.9)
+    fig_height = max(2.75, 0.76 + benchmark_count * 0.29 + (0.4 if show_title else 0.0) + (0.25 if show_note else 0.0))
 
     fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=300)
     ax.set_axis_off()
     ax.set_xlim(0, total_width)
-    ax.set_ylim(-1.0, benchmark_count + 2.4)
+    if show_title or show_note:
+        ax.set_ylim(-0.75 if show_note else -0.16, benchmark_count + (2.0 if show_title else 1.32))
+    else:
+        ax.set_ylim(0.58, benchmark_count + 1.52)
 
     font_family = ["Times New Roman", "SimSun"]
     title_text = title or "表  单目标优化算法对比实验结果"
-    ax.text(
+    title_artist = ax.text(
         total_width / 2,
-        benchmark_count + 1.95,
+        benchmark_count + 1.66,
         title_text,
         ha="center",
         va="center",
-        fontsize=13,
+        fontsize=11.6,
         fontweight="bold",
     )
+    if not show_title:
+        title_artist.set_visible(False)
 
-    top_y = benchmark_count + 1.55
-    header_y = benchmark_count + 1.08
-    bottom_y = -0.15
-    ax.hlines([top_y, header_y - 0.28, bottom_y], 0, total_width, colors="black", linewidths=[1.2, 0.7, 1.2])
+    top_y = benchmark_count + (1.32 if show_title else 1.03)
+    header_y = benchmark_count + (0.92 if show_title else 0.68)
+    bottom_y = -0.08 if show_note else 0.78
+    ax.hlines([top_y, header_y - 0.22, bottom_y], 0, total_width, colors="black", linewidths=[1.1, 0.65, 1.1])
 
     x_positions = np.cumsum([0] + cell_widths)
     headers = ["函数"] + algorithms
     for index, header in enumerate(headers):
         x = (x_positions[index] + x_positions[index + 1]) / 2
-        ax.text(x, header_y, header, ha="center", va="center", fontsize=10.5, family=font_family)
+        ax.text(x, header_y, header, ha="center", va="center", fontsize=8.5, family=font_family)
 
     for row_index, benchmark_id in enumerate(benchmark_ids):
-        y = benchmark_count - row_index + 0.35
+        y = benchmark_count - row_index + 0.22
         ax.text(
             (x_positions[0] + x_positions[1]) / 2,
             y,
             function_label(benchmark_id),
             ha="center",
             va="center",
-            fontsize=9.8,
+            fontsize=8.2,
             family=font_family,
         )
 
@@ -272,7 +294,8 @@ def draw_table(summary, benchmark_ids, algorithms, target_algorithm, output_path
             else:
                 mark = "" if algorithm == target_algorithm else relation_mark(item["mean"], target_mean)
                 text = f"{format_scientific(item['mean'])}±{format_scientific(item['std'])}{mark}"
-                fontweight = "bold" if math.isclose(item["mean"], best_mean, rel_tol=1e-12, abs_tol=1e-12) else "normal"
+                is_best = math.isclose(item["mean"], best_mean, rel_tol=1e-12, abs_tol=1e-12)
+                fontweight = "bold" if is_best or displayed_equal(item["mean"], best_mean) else "normal"
 
             x = (x_positions[algorithm_index] + x_positions[algorithm_index + 1]) / 2
             ax.text(
@@ -281,14 +304,16 @@ def draw_table(summary, benchmark_ids, algorithms, target_algorithm, output_path
                 text,
                 ha="center",
                 va="center",
-                fontsize=8.8,
+                fontsize=7.1,
                 fontweight=fontweight,
                 family=font_family,
             )
 
     note = f"注：数值为均值±标准差；每行加粗表示最优；+/-/= 表示该算法相对 {target_algorithm} 更差/更优/相当。"
-    ax.text(0, 0.05, note, ha="left", va="bottom", fontsize=8.2, family=font_family)
-    fig.savefig(output_path, bbox_inches="tight", pad_inches=0.08)
+    note_artist = ax.text(0, 0.03, note, ha="left", va="bottom", fontsize=7.0, family=font_family)
+    if not show_note:
+        note_artist.set_visible(False)
+    fig.savefig(output_path, bbox_inches="tight", pad_inches=0.06)
     plt.close(fig)
 
 
@@ -754,7 +779,16 @@ def main():
     output_png.parent.mkdir(parents=True, exist_ok=True)
 
     write_summary_csv(summary, benchmark_ids, algorithms, target_algorithm, output_csv)
-    draw_table(summary, benchmark_ids, algorithms, target_algorithm, output_png, args.title)
+    draw_table(
+        summary,
+        benchmark_ids,
+        algorithms,
+        target_algorithm,
+        output_png,
+        args.title,
+        show_title=not args.no_title,
+        show_note=not args.no_note,
+    )
 
     print(f"Input directory: {args.input_dir}")
     print(f"Suite: {args.suite}")

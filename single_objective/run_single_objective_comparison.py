@@ -30,7 +30,7 @@ from single_objective.statistical_tests import (
 RUN_TIMES = 1
 BOUNDS = [(-100, 100)] * 10
 OUTPUT_DIR = Path(__file__).resolve().parent / "comparison_results"
-PARALLEL_WORKERS = int(os.environ.get("SO_PARALLEL_WORKERS", "0"))
+PARALLEL_WORKERS = 4
 SAVE_PLOTS = os.environ.get("SO_SAVE_PLOTS", "1") != "0"
 
 # 全局测试开关：
@@ -346,7 +346,7 @@ def print_run_configuration(benchmarks, algorithms):
     print(f"Algorithm count: {len(algorithms)}")
     print(f"Algorithms: {', '.join(algorithm['name'] for algorithm in algorithms)}")
     print(f"Run times: {RUN_TIMES}")
-    print(f"Parallel workers: {'auto' if PARALLEL_WORKERS <= 0 else PARALLEL_WORKERS}")
+    print(f"Parallel workers: {PARALLEL_WORKERS}")
     print(f"Save plots: {'yes' if SAVE_PLOTS else 'no'}")
     print(
         "Common params: "
@@ -377,7 +377,7 @@ def run_benchmark(benchmark, algorithms):
     print(f"Starting benchmark: {benchmark['name']}")
     print_progress(0, total_tasks, prefix=benchmark["id"])
 
-    worker_count = PARALLEL_WORKERS if PARALLEL_WORKERS > 0 else min(total_tasks, os.cpu_count() or 1)
+    worker_count = min(PARALLEL_WORKERS, total_tasks)
     if worker_count <= 1:
         for task_index, task in enumerate(tasks, start=1):
             result = run_algorithm_task(task)

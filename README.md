@@ -59,7 +59,7 @@
 - 默认测试集：`ZDT` 和完整 `CEC2020_MMO`
 - 默认算法：`MOABC`, `MOIABC`
 - 公共参数：`bee=75, max_iter=750, limit=150, archive_size=100`
-- MOIABC 参数：`tournament_size=3, elite_rate=0.15, elimination_rate=0.15`
+- MOIABC 参数：`tournament_size=3, elite_rate=0.05, elimination_rate=0.10`
 
 当前多目标测试函数：
 
@@ -144,7 +144,6 @@ python single_objective\run_single_objective_comparison.py
 Windows PowerShell 4-core server command:
 
 ```powershell
-$env:SO_PARALLEL_WORKERS="4"
 $env:SO_SAVE_PLOTS="0"
 python single_objective\run_single_objective_comparison.py
 ```
@@ -158,7 +157,6 @@ python multi_objective\run_multi_objective_comparison.py
 在多核服务器上运行多目标实验时，可以开启并行并关闭图像和档案点导出以减少运行时间和磁盘 I/O：
 
 ```bash
-set MO_PARALLEL_WORKERS=8
 set MO_SAVE_PLOTS=0
 set MO_SAVE_ARCHIVE_POINTS=0
 python multi_objective\run_multi_objective_comparison.py
@@ -167,7 +165,7 @@ python multi_objective\run_multi_objective_comparison.py
 Linux 服务器可使用：
 
 ```bash
-MO_PARALLEL_WORKERS=8 MO_SAVE_PLOTS=0 MO_SAVE_ARCHIVE_POINTS=0 python multi_objective/run_multi_objective_comparison.py
+MO_SAVE_PLOTS=0 MO_SAVE_ARCHIVE_POINTS=0 python multi_objective/run_multi_objective_comparison.py
 ```
 
 运行 IABC 参数敏感性分析：
@@ -224,6 +222,12 @@ COMMON_PARAMS = {
     "limit": 150,
     "archive_size": 100,
 }
+
+MOIABC_BEST_PARAMS = {
+    "tournament_size": 3,
+    "elite_rate": 0.05,
+    "elimination_rate": 0.10,
+}
 ```
 
 ### 参数含义
@@ -236,6 +240,18 @@ COMMON_PARAMS = {
 - `ENABLED_SUITES`：启用哪些测试集
 - `ENABLED_FUNCTION_IDS`：只运行指定测试函数；空列表表示运行已启用测试集中的全部函数
 - `ENABLED_ALGORITHMS`：只运行指定算法；空列表表示运行全部算法
+
+### 多核运行
+
+PowerShell：
+
+```powershell
+$env:MO_SAVE_PLOTS="0"
+$env:MO_SAVE_ARCHIVE_POINTS="0"
+python multi_objective\run_multi_objective_comparison.py
+```
+
+并行进程数已固定为 4。
 
 ## 常用配置示例
 

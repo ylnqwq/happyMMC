@@ -118,7 +118,7 @@ def elite_enhancement_phase(
     trials,
     bounds,
     objective_function,
-    elite_rate=0.1,
+    elite_rate=0.05,
     archive_solutions=None,
     archive_guidance_rate=0.3,
 ):
@@ -179,7 +179,7 @@ def multi_objective_iabc(
     max_iter=500,
     limit=100,
     tournament_size=3,
-    elite_rate=0.1,
+    elite_rate=0.05,
     elimination_rate=0.1,
     archive_size=100,
     archive_guidance_rate=0.3,

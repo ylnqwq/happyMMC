@@ -25,7 +25,7 @@ from multi_objective.multiobjective_benchmarks import CEC2020_MMO_BENCHMARKS, ZD
 RUN_TIMES = 30
 SEED_BASE = 20240621
 OUTPUT_DIR = MODULE_DIR / "moiabc_sensitivity_results"
-PARALLEL_WORKERS = int(os.environ.get("MO_PARALLEL_WORKERS", "0"))
+PARALLEL_WORKERS = 4
 
 ENABLED_SUITES = ["ZDT", "CEC2020_MMO"]
 ENABLED_FUNCTION_IDS = []
@@ -138,7 +138,7 @@ def print_configuration(benchmarks):
     print(f"elimination_rate values: {ELIMINATION_RATES}")
     print(f"Parameter combinations: {total_combinations}")
     print(f"Total MOIABC runs: {total_runs}")
-    print(f"Parallel workers: {'auto' if PARALLEL_WORKERS <= 0 else PARALLEL_WORKERS}")
+    print(f"Parallel workers: {PARALLEL_WORKERS}")
 
 
 def save_rows(filename, rows):
@@ -278,7 +278,7 @@ def main():
         for seed in seeds
     ]
 
-    worker_count = PARALLEL_WORKERS if PARALLEL_WORKERS > 0 else min(len(tasks), os.cpu_count() or 1)
+    worker_count = min(PARALLEL_WORKERS, len(tasks))
     if worker_count <= 1:
         for task in tasks:
             benchmark, _, elite_rate, elimination_rate = task

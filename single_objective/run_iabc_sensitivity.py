@@ -3,6 +3,7 @@
 import csv
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -22,6 +23,7 @@ RUN_TIMES = 30
 SEED_BASE = 20240621
 BOUNDS = [(-100, 100)] * 10
 OUTPUT_DIR = MODULE_DIR / "sensitivity_results"
+PARALLEL_WORKERS = 4
 
 ENABLED_SUITES = ["CEC2022"]
 ENABLED_FUNCTION_IDS = []
@@ -91,6 +93,11 @@ def run_once(benchmark, seed, elite_rate, elimination_rate):
     }
 
 
+def run_once_task(task):
+    benchmark, seed, elite_rate, elimination_rate = task
+    return run_once(benchmark, seed, elite_rate, elimination_rate)
+
+
 def print_configuration(benchmarks):
     total_combinations = len(ELITE_RATES) * len(ELIMINATION_RATES)
     total_runs = len(benchmarks) * total_combinations * RUN_TIMES
@@ -113,6 +120,7 @@ def print_configuration(benchmarks):
     print(f"elimination_rate values: {ELIMINATION_RATES}")
     print(f"Parameter combinations: {total_combinations}")
     print(f"Total IABC runs: {total_runs}")
+    print(f"Parallel workers: {PARALLEL_WORKERS}")
 
 
 def save_rows(filename, rows):
@@ -208,12 +216,29 @@ def main():
     done = 0
     start_time = time.perf_counter()
 
-    for benchmark in benchmarks:
-        for elite_rate, elimination_rate in parameter_grid():
+    tasks = [
+        (benchmark, seed, elite_rate, elimination_rate)
+        for benchmark in benchmarks
+        for elite_rate, elimination_rate in parameter_grid()
+        for seed in seeds
+    ]
+
+    worker_count = min(PARALLEL_WORKERS, len(tasks))
+    if worker_count <= 1:
+        for task in tasks:
+            benchmark, _, elite_rate, elimination_rate = task
+            rows.append(run_once_task(task))
+            done += 1
             prefix = f"{benchmark['id']} e={elite_rate:.2f} d={elimination_rate:.2f}"
-            for seed in seeds:
-                rows.append(run_once(benchmark, seed, elite_rate, elimination_rate))
+            print_progress(done, total_tasks, prefix=prefix)
+    else:
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            futures = [executor.submit(run_once_task, task) for task in tasks]
+            for future in as_completed(futures):
+                row = future.result()
+                rows.append(row)
                 done += 1
+                prefix = f"{row['benchmark_id']} e={row['elite_rate']:.2f} d={row['elimination_rate']:.2f}"
                 print_progress(done, total_tasks, prefix=prefix)
 
     print()

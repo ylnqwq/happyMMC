@@ -31,7 +31,7 @@ from multi_objective.statistical_tests import (
 
 RUN_TIMES = 10
 OUTPUT_DIR = Path(__file__).resolve().parent / "mo_comparison_results"
-PARALLEL_WORKERS = int(os.environ.get("MO_PARALLEL_WORKERS", "0"))
+PARALLEL_WORKERS = 4
 SAVE_ARCHIVE_POINTS = os.environ.get("MO_SAVE_ARCHIVE_POINTS", "1") != "0"
 SAVE_PLOTS = os.environ.get("MO_SAVE_PLOTS", "1") != "0"
 
@@ -54,6 +54,12 @@ COMMON_PARAMS = {
     "max_iter": 750,
     "limit": 150,
     "archive_size": 100,
+}
+
+MOIABC_BEST_PARAMS = {
+    "tournament_size": 3,
+    "elite_rate": 0.05,
+    "elimination_rate": 0.10,
 }
 
 ALGORITHMS = [
@@ -102,9 +108,7 @@ ALGORITHMS = [
         "runner": MOIABC.multi_objective_iabc,
         "params": {
             **COMMON_PARAMS,
-            "tournament_size": 3,
-            "elite_rate": 0.15,
-            "elimination_rate": 0.15,
+            **MOIABC_BEST_PARAMS,
         },
     },
 ]
@@ -424,7 +428,7 @@ def print_run_configuration(benchmarks, algorithms):
     print(f"算法数量: {len(algorithms)}")
     print(f"算法: {', '.join(algorithm['name'] for algorithm in algorithms)}")
     print(f"独立运行次数: {RUN_TIMES}")
-    print(f"并行进程数: {'auto' if PARALLEL_WORKERS <= 0 else PARALLEL_WORKERS}")
+    print(f"并行进程数: {PARALLEL_WORKERS}")
     print(f"保存档案点: {'是' if SAVE_ARCHIVE_POINTS else '否'}")
     print(f"保存图像: {'是' if SAVE_PLOTS else '否'}")
     print(
@@ -458,7 +462,7 @@ def run_benchmark(benchmark, algorithms):
         for algorithm in algorithms:
             tasks.append((algorithm, benchmark, seed, run_index))
 
-    worker_count = PARALLEL_WORKERS if PARALLEL_WORKERS > 0 else min(len(tasks), os.cpu_count() or 1)
+    worker_count = min(PARALLEL_WORKERS, len(tasks))
     if worker_count <= 1:
         for task_index, task in enumerate(tasks, start=1):
             result = run_algorithm_task(task)

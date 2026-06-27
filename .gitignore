@@ -6,6 +6,9 @@
 /multi_objective/moiabc_sensitivity_results/
 /multi_objective/moiabc_sensitivity_results*.zip
 /multi_objective/mo_comparison_results/
+/multi_objective/application_point/results/*
+!/multi_objective/application_point/results/.gitkeep
+/_extracted_refs/
 
 # Python cache
 __pycache__/

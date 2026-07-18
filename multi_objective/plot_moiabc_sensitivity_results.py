@@ -362,6 +362,207 @@ def draw_table(summary_rows, benchmark_ids, combinations, metric, output_path, s
     plt.close(fig)
 
 
+def combination_header(elite_rate, elimination_rate):
+    return f"e={format_rate(elite_rate)}, d={format_rate(elimination_rate)}"
+
+
+def get_row_best_value(index, benchmark_id, combinations, mean_key, higher_is_better):
+    values = [
+        index[(benchmark_id, elite_rate, elimination_rate)][mean_key]
+        for elite_rate, elimination_rate in combinations
+        if (benchmark_id, elite_rate, elimination_rate) in index
+        and np.isfinite(index[(benchmark_id, elite_rate, elimination_rate)][mean_key])
+    ]
+    if not values:
+        return None
+    return max(values) if higher_is_better else min(values)
+
+
+def is_best_cell(value, best_value):
+    return best_value is not None and (
+        math.isclose(value, best_value, rel_tol=1e-12, abs_tol=1e-12)
+        or displayed_equal(value, best_value)
+    )
+
+
+def count_best_cells(index, benchmark_ids, combinations, mean_key, higher_is_better):
+    counts = [0] * len(combinations)
+    for benchmark_id in benchmark_ids:
+        best_value = get_row_best_value(index, benchmark_id, combinations, mean_key, higher_is_better)
+        for column_index, (elite_rate, elimination_rate) in enumerate(combinations):
+            row = index.get((benchmark_id, elite_rate, elimination_rate))
+            if row is None or not np.isfinite(row[mean_key]):
+                continue
+            if is_best_cell(row[mean_key], best_value):
+                counts[column_index] += 1
+    return counts
+
+
+def write_table_csv_paper(summary_rows, benchmark_ids, combinations, metric, output_path):
+    spec = METRIC_SPECS[metric]
+    mean_key = spec["mean"]
+    std_key = spec["std"]
+    index = {
+        (row["benchmark_id"], row["elite_rate"], row["elimination_rate"]): row
+        for row in summary_rows
+    }
+    headers = [combination_header(e, d) for e, d in combinations]
+    with output_path.open("w", encoding="utf-8-sig", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=["benchmark_id", "function"] + headers)
+        writer.writeheader()
+        for benchmark_id in benchmark_ids:
+            output_row = {"benchmark_id": benchmark_id, "function": function_label(benchmark_id)}
+            for elite_rate, elimination_rate in combinations:
+                header = combination_header(elite_rate, elimination_rate)
+                row = index.get((benchmark_id, elite_rate, elimination_rate))
+                if row is None:
+                    output_row[header] = ""
+                else:
+                    output_row[header] = (
+                        f"{format_scientific(row[mean_key])}±{format_scientific(row[std_key])}"
+                    )
+            writer.writerow(output_row)
+
+        count_row = {"benchmark_id": "count", "function": "个数"}
+        counts = count_best_cells(index, benchmark_ids, combinations, mean_key, spec["higher_is_better"])
+        for header, count in zip(headers, counts):
+            count_row[header] = count
+        writer.writerow(count_row)
+
+
+def draw_table_paper(summary_rows, benchmark_ids, combinations, metric, output_path, show_title=True, show_note=True):
+    spec = METRIC_SPECS[metric]
+    index = {
+        (row["benchmark_id"], row["elite_rate"], row["elimination_rate"]): row
+        for row in summary_rows
+    }
+    mean_key = spec["mean"]
+    std_key = spec["std"]
+    higher_is_better = spec["higher_is_better"]
+
+    column_headers = ["函数"] + [combination_header(e, d) for e, d in combinations]
+    column_widths = [1.25] + [2.25] * len(combinations)
+    total_width = sum(column_widths)
+    benchmark_count = len(benchmark_ids)
+    row_count = benchmark_count + 1
+    title_space = 0.62 if show_title else 0.05
+    note_space = 0.48 if show_note else 0.05
+    fig_width = max(10.5, total_width * 0.86)
+    fig_height = max(4.8, 1.15 + title_space + note_space + row_count * 0.34)
+
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=300)
+    ax.set_axis_off()
+    ax.set_xlim(0, total_width)
+    ax.set_ylim(-note_space, row_count + 1.55 + title_space)
+
+    font_family = ["Times New Roman", "SimSun"]
+    x_positions = np.cumsum([0] + column_widths)
+
+    if show_title:
+        title = f"表  MOIABC 不同参数组合的敏感度分析结果（{spec['label']}）"
+        ax.text(
+            total_width / 2,
+            row_count + 1.48,
+            title,
+            ha="center",
+            va="center",
+            fontsize=13,
+            fontweight="bold",
+            family=font_family,
+        )
+
+    top_y = row_count + 1.12
+    header_y = row_count + 0.65
+    bottom_y = -0.02
+    ax.hlines(
+        [top_y, header_y - 0.28, bottom_y],
+        0,
+        total_width,
+        colors="black",
+        linewidths=[1.35, 0.75, 1.35],
+    )
+
+    for column_index, header in enumerate(column_headers):
+        x = (x_positions[column_index] + x_positions[column_index + 1]) / 2
+        ax.text(
+            x,
+            header_y,
+            header,
+            ha="center",
+            va="center",
+            fontsize=10.3,
+            family=font_family,
+        )
+
+    for row_index, benchmark_id in enumerate(benchmark_ids):
+        y = row_count - row_index - 0.05
+        ax.text(
+            (x_positions[0] + x_positions[1]) / 2,
+            y,
+            function_label(benchmark_id),
+            ha="center",
+            va="center",
+            fontsize=9.6,
+            family=font_family,
+        )
+
+        best_value = get_row_best_value(index, benchmark_id, combinations, mean_key, higher_is_better)
+        for column_index, (elite_rate, elimination_rate) in enumerate(combinations, start=1):
+            row = index.get((benchmark_id, elite_rate, elimination_rate))
+            if row is None or not np.isfinite(row[mean_key]):
+                text = "-"
+                fontweight = "normal"
+            else:
+                mean = row[mean_key]
+                text = f"{format_scientific(mean)}±{format_scientific(row[std_key])}"
+                fontweight = "bold" if is_best_cell(mean, best_value) else "normal"
+            x = (x_positions[column_index] + x_positions[column_index + 1]) / 2
+            ax.text(
+                x,
+                y,
+                text,
+                ha="center",
+                va="center",
+                fontsize=8.7,
+                fontweight=fontweight,
+                family=font_family,
+            )
+
+    count_y = 0.25
+    counts = count_best_cells(index, benchmark_ids, combinations, mean_key, higher_is_better)
+    ax.text(
+        (x_positions[0] + x_positions[1]) / 2,
+        count_y,
+        "个数",
+        ha="center",
+        va="center",
+        fontsize=9.6,
+        family=font_family,
+    )
+    for column_index, count in enumerate(counts, start=1):
+        x = (x_positions[column_index] + x_positions[column_index + 1]) / 2
+        ax.text(
+            x,
+            count_y,
+            str(count),
+            ha="center",
+            va="center",
+            fontsize=9.6,
+            family=font_family,
+        )
+
+    if show_note:
+        direction = "越大越优" if higher_is_better else "越小越优"
+        note = (
+            "注：e 表示 elite_rate，d 表示 elimination_rate；"
+            f"数值为平均值±标准差；每行加粗表示该测试函数上的最优参数组合（{direction}）。"
+        )
+        ax.text(0, -0.42, note, ha="left", va="center", fontsize=8.2, family=font_family)
+
+    fig.savefig(output_path, bbox_inches="tight", pad_inches=0.08)
+    plt.close(fig)
+
+
 def main():
     configure_fonts()
     args = parse_args()
@@ -405,7 +606,7 @@ def main():
         suffix = METRIC_SPECS[metric]["suffix"]
         output_png = output_dir / f"moiabc_sensitivity_top{len(combinations)}_{suffix}_table.png"
         output_csv = output_png.with_suffix(".csv")
-        draw_table(
+        draw_table_paper(
             summary_rows,
             benchmark_ids,
             combinations,
@@ -414,7 +615,7 @@ def main():
             show_title=not args.no_title,
             show_note=not args.no_note,
         )
-        write_table_csv(summary_rows, benchmark_ids, combinations, metric, output_csv)
+        write_table_csv_paper(summary_rows, benchmark_ids, combinations, metric, output_csv)
         outputs.extend([output_png, output_csv])
 
     for output in outputs:

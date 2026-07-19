@@ -150,73 +150,6 @@ def mmf1_e(x):
     return np.array([x1, f2], dtype=float)
 
 
-def _dtlz2_shape_3d(x, g):
-    c1 = np.cos(x[0] * np.pi / 2.0)
-    c2 = np.cos(x[1] * np.pi / 2.0)
-    s1 = np.sin(x[0] * np.pi / 2.0)
-    s2 = np.sin(x[1] * np.pi / 2.0)
-    radius = 1.0 + g
-    return radius * np.array([c1 * c2, c1 * s2, s1], dtype=float)
-
-
-def mmf14(x):
-    x = np.asarray(x, dtype=float)
-    number_of_peaks = 2.0
-    g = 2.0 - np.sin(number_of_peaks * np.pi * x[-1]) ** 2
-    return _dtlz2_shape_3d(x, g)
-
-
-def mmf14_a(x):
-    x = np.asarray(x, dtype=float)
-    number_of_peaks = 2.0
-    shifted = x[-1] - 0.5 * np.sin(np.pi * x[-2])
-    g = 2.0 - np.sin(number_of_peaks * np.pi * (shifted + 1.0 / (2.0 * number_of_peaks))) ** 2
-    return _dtlz2_shape_3d(x, g)
-
-
-def mmf15(x):
-    x = np.asarray(x, dtype=float)
-    number_of_peaks = 2.0
-    g = 2.0 - np.exp(-2.0 * np.log10(2.0) * ((x[-1] - 0.1) / 0.8) ** 2) * np.sin(
-        number_of_peaks * np.pi * x[-1]
-    ) ** 2
-    return _dtlz2_shape_3d(x, g)
-
-
-def mmf15_a(x):
-    x = np.asarray(x, dtype=float)
-    number_of_peaks = 2.0
-    shifted = x[-1] - 0.5 * np.sin(np.pi * x[-2])
-    shifted += 1.0 / (2.0 * number_of_peaks)
-    g = 2.0 - np.exp(-2.0 * np.log10(2.0) * ((shifted - 0.1) / 0.8) ** 2) * np.sin(
-        number_of_peaks * np.pi * shifted
-    ) ** 2
-    return _dtlz2_shape_3d(x, g)
-
-
-def _mmf16_l(x, global_peaks, local_peaks):
-    x = np.asarray(x, dtype=float)
-    if x[-1] < 0.5:
-        g = 2.0 - np.sin(2.0 * global_peaks * np.pi * x[-1]) ** 2
-    else:
-        g = 2.0 - np.exp(-2.0 * np.log10(2.0) * ((x[-1] - 0.1) / 0.8) ** 2) * np.sin(
-            2.0 * local_peaks * np.pi * x[-1]
-        ) ** 2
-    return _dtlz2_shape_3d(x, g)
-
-
-def mmf16_l1(x):
-    return _mmf16_l(x, global_peaks=2.0, local_peaks=1.0)
-
-
-def mmf16_l2(x):
-    return _mmf16_l(x, global_peaks=1.0, local_peaks=2.0)
-
-
-def mmf16_l3(x):
-    return _mmf16_l(x, global_peaks=2.0, local_peaks=2.0)
-
-
 def _benchmark(benchmark_id, name, objective_function, bounds, reference_point):
     reference_point = np.asarray(reference_point, dtype=float)
     return {
@@ -255,11 +188,7 @@ CEC2020_MMO_BENCHMARKS = [
         [(0.1, 1.1), (0.1, 1.1), (0.1, 1.1)],
         [1.54, 15.4],
     ),
-    _benchmark("MMF14", "CEC2020 MMO MMF14 tri-objective function", mmf14, [(0.0, 1.0)] * 3, [2.2, 2.2, 2.2]),
-    _benchmark("MMF15", "CEC2020 MMO MMF15 tri-objective function", mmf15, [(0.0, 1.0)] * 3, [2.5, 2.5, 2.5]),
     _benchmark("MMF1_E", "CEC2020 MMO MMF1_e bi-objective function", mmf1_e, [(1.0, 3.0), (-20.0, 20.0)], [1.1, 1.1]),
-    _benchmark("MMF14_A", "CEC2020 MMO MMF14_a tri-objective function", mmf14_a, [(0.0, 1.0)] * 3, [2.2, 2.2, 2.2]),
-    _benchmark("MMF15_A", "CEC2020 MMO MMF15_a tri-objective function", mmf15_a, [(0.0, 1.0)] * 3, [2.5, 2.5, 2.5]),
     _benchmark("MMF10_L", "CEC2020 MMO MMF10_l bi-objective function", mmf10, [(0.1, 1.1), (0.1, 1.1)], [1.21, 13.2]),
     _benchmark("MMF11_L", "CEC2020 MMO MMF11_l bi-objective function", mmf11, [(0.1, 1.1), (0.1, 1.1)], [1.21, 15.4]),
     _benchmark("MMF12_L", "CEC2020 MMO MMF12_l bi-objective function", mmf12, [(0.0, 1.0), (0.0, 1.0)], [1.54, 1.1]),
@@ -270,9 +199,4 @@ CEC2020_MMO_BENCHMARKS = [
         [(0.1, 1.1), (0.1, 1.1), (0.1, 1.1)],
         [1.54, 15.4],
     ),
-    _benchmark("MMF15_L", "CEC2020 MMO MMF15_l tri-objective function", mmf15, [(0.0, 1.0)] * 3, [2.5, 2.5, 2.5]),
-    _benchmark("MMF15_A_L", "CEC2020 MMO MMF15_a_l tri-objective function", mmf15_a, [(0.0, 1.0)] * 3, [2.5, 2.5, 2.5]),
-    _benchmark("MMF16_L1", "CEC2020 MMO MMF16_l1 tri-objective function", mmf16_l1, [(0.0, 1.0)] * 3, [2.5, 2.5, 2.5]),
-    _benchmark("MMF16_L2", "CEC2020 MMO MMF16_l2 tri-objective function", mmf16_l2, [(0.0, 1.0)] * 3, [2.5, 2.5, 2.5]),
-    _benchmark("MMF16_L3", "CEC2020 MMO MMF16_l3 tri-objective function", mmf16_l3, [(0.0, 1.0)] * 3, [2.5, 2.5, 2.5]),
 ]

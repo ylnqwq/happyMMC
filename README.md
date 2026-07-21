@@ -64,7 +64,7 @@
 当前多目标测试函数：
 
 - `ZDT`：`ZDT1`, `ZDT2`, `ZDT3`, `ZDT4`, `ZDT6`
-- `CEC2020_MMO`：启用 15 个双目标 MMF 测试函数，包括 `MMF1`, `MMF2`, `MMF4`, `MMF5`, `MMF7`, `MMF8`, `MMF10`, `MMF11`, `MMF12`, `MMF13`, `MMF1_E`, `MMF10_L`, `MMF11_L`, `MMF12_L`, `MMF13_L`
+- `CEC2020_MMO`：启用 22 个 MMF 测试函数，包括 15 个双目标函数 `MMF1`, `MMF2`, `MMF4`, `MMF5`, `MMF7`, `MMF8`, `MMF10`, `MMF11`, `MMF12`, `MMF13`, `MMF1_E`, `MMF10_L`, `MMF11_L`, `MMF12_L`, `MMF13_L`，以及 7 个三目标函数 `MMF14`, `MMF15`, `MMF14_A`, `MMF15_A`, `MMF16_L1`, `MMF16_L2`, `MMF16_L3`
 
 多目标统计指标：
 

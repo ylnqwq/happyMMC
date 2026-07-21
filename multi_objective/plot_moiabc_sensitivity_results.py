@@ -44,16 +44,9 @@ METRIC_SPECS = {
     },
 }
 
-THREE_OBJECTIVE_BENCHMARK_IDS = {
-    "MMF14",
-    "MMF15",
-    "MMF14_A",
-    "MMF15_A",
+EXCLUDED_THREE_OBJECTIVE_L_BENCHMARK_IDS = {
     "MMF15_L",
     "MMF15_A_L",
-    "MMF16_L1",
-    "MMF16_L2",
-    "MMF16_L3",
 }
 
 
@@ -163,8 +156,8 @@ def normalize_rows(rows):
     return normalized
 
 
-def keep_two_objective_rows(rows):
-    return [row for row in rows if row.get("benchmark_id") not in THREE_OBJECTIVE_BENCHMARK_IDS]
+def exclude_three_objective_l_rows(rows):
+    return [row for row in rows if row.get("benchmark_id") not in EXCLUDED_THREE_OBJECTIVE_L_BENCHMARK_IDS]
 
 
 def available_metrics(summary_rows):
@@ -797,7 +790,7 @@ def main():
             "sensitivity_summary_by_function.csv",
         ],
     )
-    summary_rows = keep_two_objective_rows(normalize_rows(read_csv_rows(summary_path)))
+    summary_rows = exclude_three_objective_l_rows(normalize_rows(read_csv_rows(summary_path)))
 
     try:
         rank_path = find_csv(

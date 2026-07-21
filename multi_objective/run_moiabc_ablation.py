@@ -263,10 +263,14 @@ def run_moiabc_variant(objective_function, bounds, seed, variant, params):
             )
 
         if variant["use_worst_elimination"]:
+            population_best_value = float(np.min(np.sum(objectives, axis=1)))
+            current_best_value = min(history[-1], population_best_value)
             current_elimination_rate = MOIABC.get_current_elimination_rate(
                 params["elimination_rate"],
                 iteration,
                 params["max_iter"],
+                initial_best_value=history[0],
+                current_best_value=current_best_value,
             )
             MOIABC.worst_elimination_phase(
                 food_sources,

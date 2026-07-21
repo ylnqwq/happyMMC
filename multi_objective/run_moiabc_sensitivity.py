@@ -22,13 +22,33 @@ from multi_objective.mo_utils import spacing_metric
 from multi_objective.multiobjective_benchmarks import CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
 
 
-RUN_TIMES = 30
-SEED_BASE = 20240621
-OUTPUT_DIR = MODULE_DIR / "moiabc_sensitivity_results"
-PARALLEL_WORKERS = 4
+def env_int(name, default):
+    value = os.environ.get(name)
+    return default if value is None or value == "" else int(value)
 
-ENABLED_SUITES = ["ZDT", "CEC2020_MMO"]
-ENABLED_FUNCTION_IDS = []
+
+def env_csv(name, default=None):
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        return [] if default is None else default
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def env_output_dir(name, default):
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        return default
+    path = Path(value)
+    return path if path.is_absolute() else MODULE_DIR / path
+
+
+RUN_TIMES = env_int("MOIABC_SENSITIVITY_RUN_TIMES", 30)
+SEED_BASE = env_int("MOIABC_SENSITIVITY_SEED_BASE", 20260719)
+OUTPUT_DIR = env_output_dir("MOIABC_SENSITIVITY_OUTPUT_DIR", MODULE_DIR / "moiabc_sensitivity_results")
+PARALLEL_WORKERS = env_int("MOIABC_SENSITIVITY_WORKERS", 8)
+
+ENABLED_SUITES = env_csv("MOIABC_SENSITIVITY_SUITES", ["ZDT", "CEC2020_MMO"])
+ENABLED_FUNCTION_IDS = env_csv("MOIABC_SENSITIVITY_FUNCTION_IDS")
 
 BENCHMARK_SUITES = {
     "ZDT": ZDT_BENCHMARKS,
@@ -37,7 +57,7 @@ BENCHMARK_SUITES = {
 
 COMMON_PARAMS = {
     "bee": 75,
-    "max_iter": 200,
+    "max_iter": 750,
     "limit": 150,
     "archive_size": 100,
     "tournament_size": 3,
@@ -261,7 +281,7 @@ def print_progress(done, total, prefix="", width=32):
 
 
 def main():
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     benchmarks = get_enabled_benchmarks()
     print_configuration(benchmarks)
 

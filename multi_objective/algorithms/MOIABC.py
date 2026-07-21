@@ -163,13 +163,20 @@ def worst_elimination_phase(food_sources, objectives, trials, bounds, objective_
         trials[index] = 0
 
 
-def get_current_elimination_rate(initial_rate, iteration, max_iter):
+def get_current_elimination_rate(initial_rate, iteration, max_iter, initial_best_value=None, current_best_value=None):
     if initial_rate <= 0:
         return 0.0
 
-    stage = int((iteration + 1) / max(1, max_iter) * 10)
-    stage = min(stage, 10)
-    return initial_rate * stage / 10
+    time_progress = (iteration + 1) / max(1, max_iter)
+    improvement_progress = 0.0
+    if initial_best_value is not None and current_best_value is not None:
+        if np.isfinite(initial_best_value) and np.isfinite(current_best_value):
+            denominator = max(abs(initial_best_value), 1e-12)
+            improvement_progress = (initial_best_value - current_best_value) / denominator
+
+    progress = max(time_progress, improvement_progress)
+    progress = min(1.0, max(0.0, progress))
+    return initial_rate * progress
 
 
 def multi_objective_iabc(
@@ -232,7 +239,15 @@ def multi_objective_iabc(
             archive_solutions=archive_solutions,
             archive_guidance_rate=archive_guidance_rate,
         )
-        current_elimination_rate = get_current_elimination_rate(elimination_rate, iteration, max_iter)
+        population_best_value = float(np.min(np.sum(objectives, axis=1)))
+        current_best_value = min(history[-1], population_best_value)
+        current_elimination_rate = get_current_elimination_rate(
+            elimination_rate,
+            iteration,
+            max_iter,
+            initial_best_value=history[0],
+            current_best_value=current_best_value,
+        )
         worst_elimination_phase(
             food_sources,
             objectives,

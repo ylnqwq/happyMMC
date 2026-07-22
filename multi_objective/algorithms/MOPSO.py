@@ -28,8 +28,8 @@ def _update_personal_best(position, objective, best_position, best_objective):
 def mopso(
     objective_function,
     bounds,
-    swarm_size=75,
-    max_iter=750,
+    swarm_size=80,
+    max_iter=800,
     inertia=0.4,
     cognitive=1.5,
     social=1.5,

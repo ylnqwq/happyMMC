@@ -107,9 +107,9 @@ def scout_and_elimination_phase(food_sources, objectives, trials, bounds, object
 def zhao_imoabc(
     objective_function,
     bounds,
-    bee=30,
-    max_iter=500,
-    limit=100,
+    bee=80,
+    max_iter=800,
+    limit=160,
     archive_size=100,
     elimination_rate=0.1,
     seed=None,

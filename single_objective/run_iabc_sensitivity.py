@@ -33,9 +33,9 @@ BENCHMARK_SUITES = {
 }
 
 COMMON_PARAMS = {
-    "bee": 75,
-    "max_iter": 200,
-    "limit": 150,
+    "bee": 80,
+    "max_iter": 800,
+    "limit": 160,
     "tournament_size": 3,
 }
 

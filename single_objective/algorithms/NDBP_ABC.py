@@ -160,9 +160,9 @@ def scout_bee_phase(food_sources, values, trials, bounds, objective_function, li
 def ndbp_abc(
     objective_function,
     bounds,
-    bee=30,
-    max_iter=500,
-    limit=100,
+    bee=80,
+    max_iter=800,
+    limit=160,
     seed=None,
 ):
     """Nondeterministic bidirectional-planning ABC for continuous minimization."""

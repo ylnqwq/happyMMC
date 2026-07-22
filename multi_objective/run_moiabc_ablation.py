@@ -23,7 +23,7 @@ from multi_objective.mo_utils import (
     update_archive,
     validate_bounds,
 )
-from multi_objective.multiobjective_benchmarks import CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
+from multi_objective.multiobjective_benchmarks import CEC2009_UF_BENCHMARKS, CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
 from multi_objective.run_multi_objective_comparison import calculate_hypervolume
 from multi_objective.statistical_tests import (
     print_average_rank_overview,
@@ -71,23 +71,24 @@ OUTPUT_DIR = env_output_dir("MOIABC_ABLATION_OUTPUT_DIR", MODULE_DIR / "moiabc_a
 PARALLEL_WORKERS = env_int("MOIABC_ABLATION_WORKERS", 4)
 SAVE_ARCHIVE_POINTS = env_bool("MOIABC_ABLATION_SAVE_ARCHIVE_POINTS", False)
 
-ENABLED_SUITES = env_csv("MOIABC_ABLATION_SUITES", ["ZDT", "CEC2020_MMO"])
+ENABLED_SUITES = env_csv("MOIABC_ABLATION_SUITES", ["ZDT", "CEC2009_UF", "CEC2020_MMO"])
 ENABLED_FUNCTION_IDS = env_csv("MOIABC_ABLATION_FUNCTION_IDS")
 ENABLED_VARIANTS = env_csv("MOIABC_ABLATION_VARIANTS")
 
 BENCHMARK_SUITES = {
     "ZDT": ZDT_BENCHMARKS,
+    "CEC2009_UF": CEC2009_UF_BENCHMARKS,
     "CEC2020_MMO": CEC2020_MMO_BENCHMARKS,
 }
 
 COMMON_PARAMS = {
-    "bee": env_int("MOIABC_ABLATION_BEE", 75),
-    "max_iter": env_int("MOIABC_ABLATION_MAX_ITER", 750),
-    "limit": env_int("MOIABC_ABLATION_LIMIT", 150),
+    "bee": env_int("MOIABC_ABLATION_BEE", 80),
+    "max_iter": env_int("MOIABC_ABLATION_MAX_ITER", 800),
+    "limit": env_int("MOIABC_ABLATION_LIMIT", 160),
     "archive_size": env_int("MOIABC_ABLATION_ARCHIVE_SIZE", 100),
     "tournament_size": env_int("MOIABC_ABLATION_TOURNAMENT_SIZE", 3),
-    "elite_rate": env_float("MOIABC_ABLATION_ELITE_RATE", 0.05),
-    "elimination_rate": env_float("MOIABC_ABLATION_ELIMINATION_RATE", 0.10),
+    "elite_rate": env_float("MOIABC_ABLATION_ELITE_RATE", 0.15),
+    "elimination_rate": env_float("MOIABC_ABLATION_ELIMINATION_RATE", 0.20),
     "archive_guidance_rate": env_float("MOIABC_ABLATION_ARCHIVE_GUIDANCE_RATE", 0.30),
 }
 

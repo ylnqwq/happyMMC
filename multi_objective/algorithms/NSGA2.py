@@ -126,8 +126,8 @@ def _final_non_dominated_front(population, objectives, archive_size):
 def nsga2(
     objective_function,
     bounds,
-    population_size=75,
-    max_iter=750,
+    population_size=80,
+    max_iter=800,
     crossover_rate=0.9,
     mutation_rate=None,
     archive_size=100,

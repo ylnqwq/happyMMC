@@ -100,16 +100,19 @@ def onlooker_bee_phase(
         greedy_select_multi(food_sources, objectives, trials, selected_index, candidate, candidate_objective)
 
 
+def reinitialize_food_source(food_sources, objectives, trials, index, lower_bounds, upper_bounds, objective_function):
+    food_sources[index] = np.random.uniform(lower_bounds, upper_bounds)
+    objectives[index] = objective_function(food_sources[index])
+    trials[index] = 0
+
+
 def scout_bee_phase(food_sources, objectives, trials, bounds, objective_function, limit):
     bounds = np.asarray(bounds, dtype=float)
     lower_bounds = bounds[:, 0]
     upper_bounds = bounds[:, 1]
-
     for i in range(len(food_sources)):
         if trials[i] >= limit:
-            food_sources[i] = np.random.uniform(lower_bounds, upper_bounds)
-            objectives[i] = objective_function(food_sources[i])
-            trials[i] = 0
+            reinitialize_food_source(food_sources, objectives, trials, i, lower_bounds, upper_bounds, objective_function)
 
 
 def elite_enhancement_phase(
@@ -118,7 +121,7 @@ def elite_enhancement_phase(
     trials,
     bounds,
     objective_function,
-    elite_rate=0.05,
+    elite_rate=0.15,
     archive_solutions=None,
     archive_guidance_rate=0.3,
 ):
@@ -142,7 +145,7 @@ def elite_enhancement_phase(
         )
 
 
-def worst_elimination_phase(food_sources, objectives, trials, bounds, objective_function, elimination_rate=0.1):
+def worst_elimination_phase(food_sources, objectives, trials, bounds, objective_function, elimination_rate=0.2):
     food_number = len(food_sources)
     elimination_number = int(np.ceil(food_number * elimination_rate))
     if elimination_number <= 0:
@@ -158,9 +161,7 @@ def worst_elimination_phase(food_sources, objectives, trials, bounds, objective_
     upper_bounds = bounds[:, 1]
 
     for index in worst_indexes:
-        food_sources[index] = np.random.uniform(lower_bounds, upper_bounds)
-        objectives[index] = objective_function(food_sources[index])
-        trials[index] = 0
+        reinitialize_food_source(food_sources, objectives, trials, index, lower_bounds, upper_bounds, objective_function)
 
 
 def get_current_elimination_rate(initial_rate, iteration, max_iter, initial_best_value=None, current_best_value=None):
@@ -182,12 +183,12 @@ def get_current_elimination_rate(initial_rate, iteration, max_iter, initial_best
 def multi_objective_iabc(
     objective_function,
     bounds,
-    bee=30,
-    max_iter=500,
-    limit=100,
+    bee=80,
+    max_iter=800,
+    limit=160,
     tournament_size=3,
-    elite_rate=0.05,
-    elimination_rate=0.1,
+    elite_rate=0.15,
+    elimination_rate=0.2,
     archive_size=100,
     archive_guidance_rate=0.3,
     seed=None,

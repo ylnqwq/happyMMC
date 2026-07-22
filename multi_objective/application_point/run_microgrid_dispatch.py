@@ -30,9 +30,9 @@ from multi_objective.application_point.microgrid_dispatch_model import (
 OUTPUT_DIR = MODULE_DIR / "results"
 SAVE_PLOTS = os.environ.get("APP_SAVE_PLOTS", "1") != "0"
 SEED = int(os.environ.get("APP_SEED", "20260625"))
-BEE = int(os.environ.get("APP_BEE", "75"))
-MAX_ITER = int(os.environ.get("APP_MAX_ITER", "750"))
-LIMIT = int(os.environ.get("APP_LIMIT", "150"))
+BEE = int(os.environ.get("APP_BEE", "80"))
+MAX_ITER = int(os.environ.get("APP_MAX_ITER", "800"))
+LIMIT = int(os.environ.get("APP_LIMIT", "160"))
 ARCHIVE_SIZE = int(os.environ.get("APP_ARCHIVE_SIZE", "100"))
 
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "SimSun"]
@@ -136,8 +136,8 @@ def main():
         limit=LIMIT,
         archive_size=ARCHIVE_SIZE,
         tournament_size=3,
-        elite_rate=0.05,
-        elimination_rate=0.10,
+        elite_rate=0.15,
+        elimination_rate=0.20,
         seed=SEED,
     )
 

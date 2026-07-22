@@ -40,8 +40,8 @@ def _deposit_amount(value, iteration_best_value):
 def ant_colony_optimization(
     objective_function,
     bounds,
-    ant=75,
-    max_iter=750,
+    ant=80,
+    max_iter=800,
     levels=50,
     evaporation_rate=0.2,
     deposit_weight=1.0,

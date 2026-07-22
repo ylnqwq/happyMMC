@@ -139,82 +139,202 @@ def mmf13(x):
     return np.array([x[0], g / x[0]], dtype=float)
 
 
-def mmf1_e(x):
+def _uf_odd_even_y(x, shape_function):
     x = np.asarray(x, dtype=float)
-    if x[0] < 2.0:
-        x1 = 2.0 - x[0]
-        f2 = 1.0 - np.sqrt(x1) + 2.0 * (x[1] - np.sin(6.0 * np.pi * x1 + np.pi)) ** 2
-    else:
-        x1 = x[0] - 2.0
-        f2 = 1.0 - np.sqrt(x1) + 2.0 * (x[1] - np.exp(x[0]) * np.sin(6.0 * np.pi * x1 + np.pi)) ** 2
-    return np.array([x1, f2], dtype=float)
+    n = len(x)
+    j = np.arange(2, n + 1, dtype=float)
+    y = x[1:] - shape_function(j, n)
+    odd_mask = (j.astype(int) % 2) == 1
+    even_mask = ~odd_mask
+    return y[odd_mask], y[even_mask], j[odd_mask], j[even_mask]
 
 
-def _dtlz2_shape_3d(x, g):
-    c1 = np.cos(x[0] * np.pi / 2.0)
-    c2 = np.cos(x[1] * np.pi / 2.0)
-    s1 = np.sin(x[0] * np.pi / 2.0)
-    s2 = np.sin(x[1] * np.pi / 2.0)
-    radius = 1.0 + g
-    return radius * np.array([c1 * c2, c1 * s2, s1], dtype=float)
-
-
-def mmf14(x):
+def _uf_three_way_y(x):
     x = np.asarray(x, dtype=float)
-    number_of_peaks = 2.0
-    g = 2.0 - np.sin(number_of_peaks * np.pi * x[-1]) ** 2
-    return _dtlz2_shape_3d(x, g)
+    n = len(x)
+    j = np.arange(3, n + 1, dtype=float)
+    y = x[2:] - 2.0 * x[1] * np.sin(2.0 * np.pi * x[0] + j * np.pi / n)
+    int_j = j.astype(int)
+    return (
+        y[(int_j - 1) % 3 == 0],
+        y[(int_j - 2) % 3 == 0],
+        y[int_j % 3 == 0],
+    )
 
 
-def mmf14_a(x):
+def uf1(x):
     x = np.asarray(x, dtype=float)
-    number_of_peaks = 2.0
-    shifted = x[-1] - 0.5 * np.sin(np.pi * x[-2])
-    g = 2.0 - np.sin(number_of_peaks * np.pi * (shifted + 1.0 / (2.0 * number_of_peaks))) ** 2
-    return _dtlz2_shape_3d(x, g)
+    y_odd, y_even, _, _ = _uf_odd_even_y(
+        x,
+        lambda j, n: np.sin(6.0 * np.pi * x[0] + j * np.pi / n),
+    )
+    return np.array(
+        [
+            x[0] + 2.0 * np.mean(y_odd**2),
+            1.0 - np.sqrt(x[0]) + 2.0 * np.mean(y_even**2),
+        ],
+        dtype=float,
+    )
 
 
-def mmf15(x):
+def uf2(x):
     x = np.asarray(x, dtype=float)
-    number_of_peaks = 2.0
-    g = 2.0 - np.exp(-2.0 * np.log10(2.0) * ((x[-1] - 0.1) / 0.8) ** 2) * np.sin(
-        number_of_peaks * np.pi * x[-1]
-    ) ** 2
-    return _dtlz2_shape_3d(x, g)
+
+    def shape(j, n):
+        base = 0.3 * x[0] * (x[0] * np.cos(24.0 * np.pi * x[0] + 4.0 * j * np.pi / n) + 2.0)
+        angle = 6.0 * np.pi * x[0] + j * np.pi / n
+        return np.where((j.astype(int) % 2) == 1, base * np.cos(angle), base * np.sin(angle))
+
+    y_odd, y_even, _, _ = _uf_odd_even_y(x, shape)
+    return np.array(
+        [
+            x[0] + 2.0 * np.mean(y_odd**2),
+            1.0 - np.sqrt(x[0]) + 2.0 * np.mean(y_even**2),
+        ],
+        dtype=float,
+    )
 
 
-def mmf15_a(x):
+def uf3(x):
     x = np.asarray(x, dtype=float)
-    number_of_peaks = 2.0
-    shifted = x[-1] - 0.5 * np.sin(np.pi * x[-2])
-    shifted += 1.0 / (2.0 * number_of_peaks)
-    g = 2.0 - np.exp(-2.0 * np.log10(2.0) * ((shifted - 0.1) / 0.8) ** 2) * np.sin(
-        number_of_peaks * np.pi * shifted
-    ) ** 2
-    return _dtlz2_shape_3d(x, g)
+    n = len(x)
+
+    def shape(j, _):
+        return x[0] ** (0.5 * (1.0 + 3.0 * (j - 2.0) / (n - 2.0)))
+
+    y_odd, y_even, j_odd, j_even = _uf_odd_even_y(x, shape)
+    p_odd = np.cos(20.0 * y_odd * np.pi / np.sqrt(j_odd))
+    p_even = np.cos(20.0 * y_even * np.pi / np.sqrt(j_even))
+    return np.array(
+        [
+            x[0] + 2.0 * (4.0 * np.sum(y_odd**2) - 2.0 * np.prod(p_odd) + 2.0) / len(y_odd),
+            1.0
+            - np.sqrt(x[0])
+            + 2.0 * (4.0 * np.sum(y_even**2) - 2.0 * np.prod(p_even) + 2.0) / len(y_even),
+        ],
+        dtype=float,
+    )
 
 
-def _mmf16_l(x, global_peaks, local_peaks):
+def uf4(x):
     x = np.asarray(x, dtype=float)
-    if 0.0 <= x[-1] < 0.5:
-        g = 2.0 - np.sin(2.0 * global_peaks * np.pi * x[-1]) ** 2
-    else:
-        g = 2.0 - np.exp(-2.0 * np.log10(2.0) * ((x[-1] - 0.1) / 0.8) ** 2) * np.sin(
-            2.0 * local_peaks * np.pi * x[-1]
-        ) ** 2
-    return _dtlz2_shape_3d(x, g)
+    y_odd, y_even, _, _ = _uf_odd_even_y(
+        x,
+        lambda j, n: np.sin(6.0 * np.pi * x[0] + j * np.pi / n),
+    )
+    h_odd = np.abs(y_odd) / (1.0 + np.exp(2.0 * np.abs(y_odd)))
+    h_even = np.abs(y_even) / (1.0 + np.exp(2.0 * np.abs(y_even)))
+    return np.array(
+        [
+            x[0] + 2.0 * np.mean(h_odd),
+            1.0 - x[0] ** 2 + 2.0 * np.mean(h_even),
+        ],
+        dtype=float,
+    )
 
 
-def mmf16_l1(x):
-    return _mmf16_l(x, global_peaks=2.0, local_peaks=1.0)
+def uf5(x):
+    x = np.asarray(x, dtype=float)
+    y_odd, y_even, _, _ = _uf_odd_even_y(
+        x,
+        lambda j, n: np.sin(6.0 * np.pi * x[0] + j * np.pi / n),
+    )
+    n_peaks = 10.0
+    epsilon = 0.1
+    h = (0.5 / n_peaks + epsilon) * abs(np.sin(2.0 * n_peaks * np.pi * x[0]))
+    h_odd = 2.0 * y_odd**2 - np.cos(4.0 * np.pi * y_odd) + 1.0
+    h_even = 2.0 * y_even**2 - np.cos(4.0 * np.pi * y_even) + 1.0
+    return np.array(
+        [
+            x[0] + h + 2.0 * np.mean(h_odd),
+            1.0 - x[0] + h + 2.0 * np.mean(h_even),
+        ],
+        dtype=float,
+    )
 
 
-def mmf16_l2(x):
-    return _mmf16_l(x, global_peaks=1.0, local_peaks=2.0)
+def uf6(x):
+    x = np.asarray(x, dtype=float)
+    y_odd, y_even, j_odd, j_even = _uf_odd_even_y(
+        x,
+        lambda j, n: np.sin(6.0 * np.pi * x[0] + j * np.pi / n),
+    )
+    p_odd = np.cos(20.0 * y_odd * np.pi / np.sqrt(j_odd))
+    p_even = np.cos(20.0 * y_even * np.pi / np.sqrt(j_even))
+    n_peaks = 2.0
+    epsilon = 0.1
+    h = 2.0 * (0.5 / n_peaks + epsilon) * np.sin(2.0 * n_peaks * np.pi * x[0])
+    h = max(0.0, h)
+    return np.array(
+        [
+            x[0] + h + 2.0 * (4.0 * np.sum(y_odd**2) - 2.0 * np.prod(p_odd) + 2.0) / len(y_odd),
+            1.0
+            - x[0]
+            + h
+            + 2.0 * (4.0 * np.sum(y_even**2) - 2.0 * np.prod(p_even) + 2.0) / len(y_even),
+        ],
+        dtype=float,
+    )
 
 
-def mmf16_l3(x):
-    return _mmf16_l(x, global_peaks=2.0, local_peaks=2.0)
+def uf7(x):
+    x = np.asarray(x, dtype=float)
+    y_odd, y_even, _, _ = _uf_odd_even_y(
+        x,
+        lambda j, n: np.sin(6.0 * np.pi * x[0] + j * np.pi / n),
+    )
+    y = x[0] ** 0.2
+    return np.array(
+        [
+            y + 2.0 * np.mean(y_odd**2),
+            1.0 - y + 2.0 * np.mean(y_even**2),
+        ],
+        dtype=float,
+    )
+
+
+def uf8(x):
+    x = np.asarray(x, dtype=float)
+    y1, y2, y3 = _uf_three_way_y(x)
+    return np.array(
+        [
+            np.cos(0.5 * np.pi * x[0]) * np.cos(0.5 * np.pi * x[1]) + 2.0 * np.mean(y1**2),
+            np.cos(0.5 * np.pi * x[0]) * np.sin(0.5 * np.pi * x[1]) + 2.0 * np.mean(y2**2),
+            np.sin(0.5 * np.pi * x[0]) + 2.0 * np.mean(y3**2),
+        ],
+        dtype=float,
+    )
+
+
+def uf9(x):
+    x = np.asarray(x, dtype=float)
+    y1, y2, y3 = _uf_three_way_y(x)
+    epsilon = 0.1
+    h = max(0.0, (1.0 + epsilon) * (1.0 - 4.0 * (2.0 * x[0] - 1.0) ** 2))
+    return np.array(
+        [
+            0.5 * (h + 2.0 * x[0]) * x[1] + 2.0 * np.mean(y1**2),
+            0.5 * (h - 2.0 * x[0] + 2.0) * x[1] + 2.0 * np.mean(y2**2),
+            1.0 - x[1] + 2.0 * np.mean(y3**2),
+        ],
+        dtype=float,
+    )
+
+
+def uf10(x):
+    x = np.asarray(x, dtype=float)
+    y1, y2, y3 = _uf_three_way_y(x)
+    h1 = 4.0 * y1**2 - np.cos(8.0 * np.pi * y1) + 1.0
+    h2 = 4.0 * y2**2 - np.cos(8.0 * np.pi * y2) + 1.0
+    h3 = 4.0 * y3**2 - np.cos(8.0 * np.pi * y3) + 1.0
+    return np.array(
+        [
+            np.cos(0.5 * np.pi * x[0]) * np.cos(0.5 * np.pi * x[1]) + 2.0 * np.mean(h1),
+            np.cos(0.5 * np.pi * x[0]) * np.sin(0.5 * np.pi * x[1]) + 2.0 * np.mean(h2),
+            np.sin(0.5 * np.pi * x[0]) + 2.0 * np.mean(h3),
+        ],
+        dtype=float,
+    )
 
 
 def _benchmark(benchmark_id, name, objective_function, bounds, reference_point):
@@ -238,6 +358,38 @@ ZDT_BENCHMARKS = [
 ]
 
 
+CEC2009_UF_BENCHMARKS = [
+    _benchmark("UF1", "CEC2009 UF1 bi-objective function", uf1, [(0.0, 1.0)] + [(-1.0, 1.0)] * 29, [1.1, 1.1]),
+    _benchmark("UF2", "CEC2009 UF2 bi-objective function", uf2, [(0.0, 1.0)] + [(-1.0, 1.0)] * 29, [1.1, 1.1]),
+    _benchmark("UF3", "CEC2009 UF3 bi-objective function", uf3, [(0.0, 1.0)] * 30, [1.1, 1.1]),
+    _benchmark("UF4", "CEC2009 UF4 bi-objective function", uf4, [(0.0, 1.0)] + [(-2.0, 2.0)] * 29, [1.1, 1.1]),
+    _benchmark("UF5", "CEC2009 UF5 bi-objective function", uf5, [(0.0, 1.0)] + [(-1.0, 1.0)] * 29, [1.1, 1.1]),
+    _benchmark("UF6", "CEC2009 UF6 bi-objective function", uf6, [(0.0, 1.0)] + [(-1.0, 1.0)] * 29, [1.1, 1.1]),
+    _benchmark("UF7", "CEC2009 UF7 bi-objective function", uf7, [(0.0, 1.0)] + [(-1.0, 1.0)] * 29, [1.1, 1.1]),
+    _benchmark(
+        "UF8",
+        "CEC2009 UF8 tri-objective function",
+        uf8,
+        [(0.0, 1.0), (0.0, 1.0)] + [(-2.0, 2.0)] * 28,
+        [1.1, 1.1, 1.1],
+    ),
+    _benchmark(
+        "UF9",
+        "CEC2009 UF9 tri-objective function",
+        uf9,
+        [(0.0, 1.0), (0.0, 1.0)] + [(-2.0, 2.0)] * 28,
+        [1.1, 1.1, 1.1],
+    ),
+    _benchmark(
+        "UF10",
+        "CEC2009 UF10 tri-objective function",
+        uf10,
+        [(0.0, 1.0), (0.0, 1.0)] + [(-2.0, 2.0)] * 28,
+        [1.1, 1.1, 1.1],
+    ),
+]
+
+
 CEC2020_MMO_BENCHMARKS = [
     _benchmark("MMF1", "CEC2020 MMO MMF1 bi-objective function", mmf1, [(1.0, 3.0), (-1.0, 1.0)], [1.1, 1.1]),
     _benchmark("MMF2", "CEC2020 MMO MMF2 bi-objective function", mmf2, [(0.0, 1.0), (0.0, 2.0)], [1.1, 1.1]),
@@ -251,24 +403,6 @@ CEC2020_MMO_BENCHMARKS = [
     _benchmark(
         "MMF13",
         "CEC2020 MMO MMF13 bi-objective function",
-        mmf13,
-        [(0.1, 1.1), (0.1, 1.1), (0.1, 1.1)],
-        [1.54, 15.4],
-    ),
-    _benchmark("MMF1_E", "CEC2020 MMO MMF1_e bi-objective function", mmf1_e, [(1.0, 3.0), (-20.0, 20.0)], [1.1, 1.1]),
-    _benchmark("MMF14", "CEC2020 MMO MMF14 tri-objective function", mmf14, [(0.0, 1.0)] * 3, [2.2, 2.2, 2.2]),
-    _benchmark("MMF15", "CEC2020 MMO MMF15 tri-objective function", mmf15, [(0.0, 1.0)] * 3, [2.5, 2.5, 2.5]),
-    _benchmark("MMF14_A", "CEC2020 MMO MMF14_a tri-objective function", mmf14_a, [(0.0, 1.0)] * 3, [2.2, 2.2, 2.2]),
-    _benchmark("MMF15_A", "CEC2020 MMO MMF15_a tri-objective function", mmf15_a, [(0.0, 1.0)] * 3, [2.5, 2.5, 2.5]),
-    _benchmark("MMF16_L1", "CEC2020 MMO MMF16_l1 tri-objective function", mmf16_l1, [(0.0, 1.0)] * 3, [2.5, 2.5, 2.5]),
-    _benchmark("MMF16_L2", "CEC2020 MMO MMF16_l2 tri-objective function", mmf16_l2, [(0.0, 1.0)] * 3, [2.5, 2.5, 2.5]),
-    _benchmark("MMF16_L3", "CEC2020 MMO MMF16_l3 tri-objective function", mmf16_l3, [(0.0, 1.0)] * 3, [2.5, 2.5, 2.5]),
-    _benchmark("MMF10_L", "CEC2020 MMO MMF10_l bi-objective function", mmf10, [(0.1, 1.1), (0.1, 1.1)], [1.21, 13.2]),
-    _benchmark("MMF11_L", "CEC2020 MMO MMF11_l bi-objective function", mmf11, [(0.1, 1.1), (0.1, 1.1)], [1.21, 15.4]),
-    _benchmark("MMF12_L", "CEC2020 MMO MMF12_l bi-objective function", mmf12, [(0.0, 1.0), (0.0, 1.0)], [1.54, 1.1]),
-    _benchmark(
-        "MMF13_L",
-        "CEC2020 MMO MMF13_l bi-objective function",
         mmf13,
         [(0.1, 1.1), (0.1, 1.1), (0.1, 1.1)],
         [1.54, 15.4],

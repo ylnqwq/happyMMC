@@ -116,17 +116,21 @@ def onlooker_bee_phase(
         greedy_select(food_sources, values, trials, selected_index, candidate, candidate_value)
 
 
+def reinitialize_food_source(food_sources, values, trials, index, lower_bounds, upper_bounds, objective_function):
+    """随机重新初始化指定蜜源。"""
+    food_sources[index] = np.random.uniform(lower_bounds, upper_bounds)
+    values[index] = objective_function(food_sources[index])
+    trials[index] = 0
+
+
 def scout_bee_phase(food_sources, values, trials, bounds, objective_function, limit):
     """侦察蜂阶段，超过试探上限的蜜源会被随机重新初始化。"""
     bounds = np.asarray(bounds, dtype=float)
     lower_bounds = bounds[:, 0]
     upper_bounds = bounds[:, 1]
-
     for i in range(len(food_sources)):
         if trials[i] >= limit:
-            food_sources[i] = np.random.uniform(lower_bounds, upper_bounds)
-            values[i] = objective_function(food_sources[i])
-            trials[i] = 0
+            reinitialize_food_source(food_sources, values, trials, i, lower_bounds, upper_bounds, objective_function)
 
 
 def elite_enhancement_phase(
@@ -177,9 +181,7 @@ def worst_elimination_phase(
     upper_bounds = bounds[:, 1]
 
     for index in worst_indexes:
-        food_sources[index] = np.random.uniform(lower_bounds, upper_bounds)
-        values[index] = objective_function(food_sources[index])
-        trials[index] = 0
+        reinitialize_food_source(food_sources, values, trials, index, lower_bounds, upper_bounds, objective_function)
 
 
 def get_current_elimination_rate(initial_rate, iteration, max_iter):
@@ -195,9 +197,9 @@ def get_current_elimination_rate(initial_rate, iteration, max_iter):
 def iabc(
     objective_function,
     bounds,
-    bee=30,
-    max_iter=500,
-    limit=100,
+    bee=80,
+    max_iter=800,
+    limit=160,
     tournament_size=3,
     elite_rate=0.1,
     elimination_rate=0.1,

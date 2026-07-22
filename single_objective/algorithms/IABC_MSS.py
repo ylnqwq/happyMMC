@@ -165,9 +165,9 @@ def scout_bee_phase(food_sources, values, trials, bounds, objective_function, li
 def iabc_mss(
     objective_function,
     bounds,
-    bee=30,
-    max_iter=500,
-    limit=100,
+    bee=80,
+    max_iter=800,
+    limit=160,
     seed=None,
 ):
     """Multi-strategy synthesis improved ABC for continuous minimization."""

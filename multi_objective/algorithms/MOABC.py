@@ -87,9 +87,9 @@ def scout_bee_phase(food_sources, objectives, trials, bounds, objective_function
 def multi_objective_abc(
     objective_function,
     bounds,
-    bee=30,
-    max_iter=500,
-    limit=100,
+    bee=80,
+    max_iter=800,
+    limit=160,
     archive_size=100,
     seed=None,
 ):

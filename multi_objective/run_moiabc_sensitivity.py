@@ -19,7 +19,7 @@ if str(MODULE_DIR) not in sys.path:
 from multi_objective.algorithms import MOIABC
 from multi_objective.run_multi_objective_comparison import calculate_hypervolume
 from multi_objective.mo_utils import spacing_metric
-from multi_objective.multiobjective_benchmarks import CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
+from multi_objective.multiobjective_benchmarks import CEC2009_UF_BENCHMARKS, CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
 
 
 def env_int(name, default):
@@ -45,20 +45,21 @@ def env_output_dir(name, default):
 RUN_TIMES = env_int("MOIABC_SENSITIVITY_RUN_TIMES", 30)
 SEED_BASE = env_int("MOIABC_SENSITIVITY_SEED_BASE", 20260719)
 OUTPUT_DIR = env_output_dir("MOIABC_SENSITIVITY_OUTPUT_DIR", MODULE_DIR / "moiabc_sensitivity_results")
-PARALLEL_WORKERS = env_int("MOIABC_SENSITIVITY_WORKERS", 8)
+PARALLEL_WORKERS = env_int("MOIABC_SENSITIVITY_WORKERS", 4)
 
-ENABLED_SUITES = env_csv("MOIABC_SENSITIVITY_SUITES", ["ZDT", "CEC2020_MMO"])
+ENABLED_SUITES = env_csv("MOIABC_SENSITIVITY_SUITES", ["ZDT", "CEC2009_UF", "CEC2020_MMO"])
 ENABLED_FUNCTION_IDS = env_csv("MOIABC_SENSITIVITY_FUNCTION_IDS")
 
 BENCHMARK_SUITES = {
     "ZDT": ZDT_BENCHMARKS,
+    "CEC2009_UF": CEC2009_UF_BENCHMARKS,
     "CEC2020_MMO": CEC2020_MMO_BENCHMARKS,
 }
 
 COMMON_PARAMS = {
-    "bee": 75,
-    "max_iter": 750,
-    "limit": 150,
+    "bee": 80,
+    "max_iter": 800,
+    "limit": 160,
     "archive_size": 100,
     "tournament_size": 3,
 }

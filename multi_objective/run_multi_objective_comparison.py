@@ -20,7 +20,7 @@ if str(MODULE_DIR) not in sys.path:
 
 from multi_objective.algorithms import MOABC, MOIABC, MOPSO, NSGA2, Zhao_IMOABC, Zhou_IMOABC
 from multi_objective.mo_utils import non_dominated_mask, spacing_metric
-from multi_objective.multiobjective_benchmarks import CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
+from multi_objective.multiobjective_benchmarks import CEC2009_UF_BENCHMARKS, CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
 from multi_objective.statistical_tests import (
     print_average_rank_overview,
     print_wilcoxon_overview,
@@ -36,30 +36,31 @@ SAVE_ARCHIVE_POINTS = os.environ.get("MO_SAVE_ARCHIVE_POINTS", "1") != "0"
 SAVE_PLOTS = os.environ.get("MO_SAVE_PLOTS", "1") != "0"
 
 # 全局测试开关：
-# 1. ENABLED_SUITES 控制要跑哪些测试集，可选 "ZDT"、"CEC2020_MMO"。
+# 1. ENABLED_SUITES 控制要跑哪些测试集，可选 "ZDT"、"CEC2009_UF"、"CEC2020_MMO"。
 # 2. ENABLED_FUNCTION_IDS 控制要跑哪些具体函数，空列表表示不过滤。
-#    例：只跑 ZDT1 和 MMF1 -> ENABLED_FUNCTION_IDS = ["ZDT1", "MMF1"]
-ENABLED_SUITES = ["ZDT", "CEC2020_MMO"]
+#    例：只跑 ZDT1、UF1 和 MMF1 -> ENABLED_FUNCTION_IDS = ["ZDT1", "UF1", "MMF1"]
+ENABLED_SUITES = ["ZDT", "CEC2009_UF", "CEC2020_MMO"]
 ENABLED_FUNCTION_IDS = []
 # 可选算法 MOABC, NSGA-II, MOPSO, Zhou-IMOABC, Zhao-IMOABC, MOIABC
 ENABLED_ALGORITHMS = ["MOABC","MOIABC","NSGA-II","MOPSO","Zhou-IMOABC","Zhao-IMOABC"]
 
 BENCHMARK_SUITES = {
     "ZDT": ZDT_BENCHMARKS,
+    "CEC2009_UF": CEC2009_UF_BENCHMARKS,
     "CEC2020_MMO": CEC2020_MMO_BENCHMARKS,
 }
 
 COMMON_PARAMS = {
-    "bee": 75,
-    "max_iter": 750,
-    "limit": 150,
+    "bee": 80,
+    "max_iter": 800,
+    "limit": 160,
     "archive_size": 100,
 }
 
 MOIABC_BEST_PARAMS = {
     "tournament_size": 3,
-    "elite_rate": 0.05,
-    "elimination_rate": 0.10,
+    "elite_rate": 0.15,
+    "elimination_rate": 0.20,
 }
 
 ALGORITHMS = [

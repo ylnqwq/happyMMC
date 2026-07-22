@@ -48,9 +48,9 @@ BENCHMARK_SUITES = {
 }
 
 COMMON_PARAMS = {
-    "bee": 75,
-    "max_iter": 750,
-    "limit": 150,
+    "bee": 80,
+    "max_iter": 800,
+    "limit": 160,
 }
 
 ALGORITHMS = [

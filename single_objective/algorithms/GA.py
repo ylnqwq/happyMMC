@@ -51,8 +51,8 @@ def _mutate(individual, bounds, mutation_rate):
 def genetic_algorithm(
     objective_function,
     bounds,
-    population_size=75,
-    max_iter=750,
+    population_size=80,
+    max_iter=800,
     crossover_rate=0.8,
     mutation_rate=None,
     seed=None,

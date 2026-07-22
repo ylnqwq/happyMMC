@@ -12,6 +12,27 @@ import numpy as np
 
 
 DEFAULT_INPUT_DIR = Path(__file__).resolve().parent / "moiabc_sensitivity_results"
+DEFAULT_ABLATION_INPUT_DIR = Path(__file__).resolve().parent / "moiabc_ablation_results"
+
+ABLATION_ALGORITHM_ORDER = [
+    "MOIABC",
+    "MOIABC-no-good-point-init",
+    "MOIABC-no-tournament-selection",
+    "MOIABC-no-elite-enhancement",
+    "MOIABC-no-archive-guidance",
+    "MOIABC-no-worst-elimination",
+    "MOABC-equivalent",
+]
+
+ABLATION_ALGORITHM_LABELS = {
+    "MOIABC": "MOIABC",
+    "MOIABC-no-good-point-init": "MOIABC-NG",
+    "MOIABC-no-tournament-selection": "MOIABC-NT",
+    "MOIABC-no-elite-enhancement": "MOIABC-NE",
+    "MOIABC-no-archive-guidance": "MOIABC-NA",
+    "MOIABC-no-worst-elimination": "MOIABC-NW",
+    "MOABC-equivalent": "MOABC",
+}
 
 METRIC_SPECS = {
     "hypervolume": {
@@ -44,10 +65,7 @@ METRIC_SPECS = {
     },
 }
 
-EXCLUDED_THREE_OBJECTIVE_L_BENCHMARK_IDS = {
-    "MMF15_L",
-    "MMF15_A_L",
-}
+EXCLUDED_DUPLICATE_BENCHMARK_IDS = set()
 
 
 def configure_fonts():
@@ -69,6 +87,12 @@ def configure_fonts():
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Draw paper-style MOIABC parameter sensitivity tables."
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["sensitivity", "ablation"],
+        default="sensitivity",
+        help="Draw parameter sensitivity figures or MOIABC ablation figures.",
     )
     parser.add_argument(
         "--input-dir",
@@ -108,6 +132,11 @@ def parse_args():
         "--bar",
         action="store_true",
         help="Draw one top-k average-rank bar chart instead of a table.",
+    )
+    parser.add_argument(
+        "--friedman",
+        action="store_true",
+        help="For --mode ablation, draw Friedman average-rank bar chart(s) instead of tables.",
     )
     parser.add_argument(
         "--sort-by",
@@ -156,8 +185,8 @@ def normalize_rows(rows):
     return normalized
 
 
-def exclude_three_objective_l_rows(rows):
-    return [row for row in rows if row.get("benchmark_id") not in EXCLUDED_THREE_OBJECTIVE_L_BENCHMARK_IDS]
+def exclude_duplicate_rows(rows):
+    return [row for row in rows if row.get("benchmark_id") not in EXCLUDED_DUPLICATE_BENCHMARK_IDS]
 
 
 def available_metrics(summary_rows):
@@ -601,6 +630,559 @@ def draw_top_bar_chart(summary_rows, metric, top_k, output_path, show_title=True
     plt.close(fig)
 
 
+def normalize_ablation_rows(rows):
+    normalized = []
+    numeric_keys = {
+        "run_times",
+        "mean_archive_size",
+        "mean_best_sum",
+        "std_best_sum",
+        "best_sum",
+        "mean_sum",
+        "mean_spacing",
+        "std_spacing",
+        "mean_hypervolume",
+        "std_hypervolume",
+        "best_hypervolume",
+        "mean_time",
+    }
+    for row in rows:
+        item = dict(row)
+        for key in numeric_keys:
+            if key in item:
+                item[key] = to_float(item[key])
+        normalized.append(item)
+    return normalized
+
+
+def ablation_algorithms(rows):
+    present = {row["variant"] for row in rows}
+    ordered = [algorithm for algorithm in ABLATION_ALGORITHM_ORDER if algorithm in present]
+    ordered.extend(sorted(present - set(ordered)))
+    return ordered
+
+
+def ablation_index(rows):
+    return {(row["benchmark_id"], row["variant"]): row for row in rows}
+
+
+def ablation_best_value(index, benchmark_id, algorithms, mean_key, higher_is_better):
+    values = [
+        index[(benchmark_id, algorithm)][mean_key]
+        for algorithm in algorithms
+        if (benchmark_id, algorithm) in index
+        and np.isfinite(index[(benchmark_id, algorithm)][mean_key])
+    ]
+    if not values:
+        return None
+    return max(values) if higher_is_better else min(values)
+
+
+def draw_ablation_table(summary_rows, benchmark_ids, algorithms, metric, output_path, show_title=True):
+    spec = METRIC_SPECS[metric]
+    mean_key = spec["mean"]
+    std_key = spec["std"]
+    higher_is_better = spec["higher_is_better"]
+    index = ablation_index(summary_rows)
+
+    column_headers = ["函数"] + [ABLATION_ALGORITHM_LABELS.get(algorithm, algorithm) for algorithm in algorithms]
+    column_widths = [1.1] + [1.82] * len(algorithms)
+    total_width = sum(column_widths)
+    benchmark_count = len(benchmark_ids)
+    row_count = benchmark_count + 1
+    title_space = 0.62 if show_title else 0.05
+    fig_width = max(12.0, total_width * 0.82)
+    fig_height = max(7.0, 1.05 + title_space + row_count * 0.32)
+
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=300)
+    ax.set_axis_off()
+    ax.set_xlim(0, total_width)
+    ax.set_ylim(0, row_count + 1.55 + title_space)
+
+    font_family = ["Times New Roman", "SimSun"]
+    x_positions = np.cumsum([0] + column_widths)
+
+    if show_title:
+        ax.text(
+            total_width / 2,
+            row_count + 1.46,
+            f"MOIABC 消融实验结果（{spec['label']}）",
+            ha="center",
+            va="center",
+            fontsize=13,
+            fontweight="bold",
+            family=font_family,
+        )
+
+    top_y = row_count + 1.08
+    header_y = row_count + 0.62
+    bottom_y = 0.02
+    ax.hlines(
+        [top_y, header_y - 0.27, bottom_y],
+        0,
+        total_width,
+        colors="black",
+        linewidths=[1.35, 0.75, 1.35],
+    )
+
+    for column_index, header in enumerate(column_headers):
+        x = (x_positions[column_index] + x_positions[column_index + 1]) / 2
+        ax.text(
+            x,
+            header_y,
+            header,
+            ha="center",
+            va="center",
+            fontsize=9.2,
+            family=font_family,
+        )
+
+    best_counts = [0] * len(algorithms)
+    for row_index, benchmark_id in enumerate(benchmark_ids):
+        y = row_count - row_index - 0.05
+        ax.text(
+            (x_positions[0] + x_positions[1]) / 2,
+            y,
+            function_label(benchmark_id),
+            ha="center",
+            va="center",
+            fontsize=8.7,
+            family=font_family,
+        )
+
+        best_value = ablation_best_value(index, benchmark_id, algorithms, mean_key, higher_is_better)
+        for column_index, algorithm in enumerate(algorithms, start=1):
+            row = index.get((benchmark_id, algorithm))
+            if row is None or not np.isfinite(row[mean_key]):
+                text = "-"
+                fontweight = "normal"
+            else:
+                mean = row[mean_key]
+                std = row[std_key]
+                relative_mean = relative_to_best(mean, best_value, higher_is_better)
+                text = f"{format_scientific(relative_mean)}±{format_scientific(std)}"
+                is_best = is_best_cell(mean, best_value)
+                fontweight = "bold" if is_best else "normal"
+                if is_best:
+                    best_counts[column_index - 1] += 1
+            x = (x_positions[column_index] + x_positions[column_index + 1]) / 2
+            ax.text(
+                x,
+                y,
+                text,
+                ha="center",
+                va="center",
+                fontsize=7.0,
+                fontweight=fontweight,
+                family=font_family,
+            )
+
+    count_y = 0.27
+    ax.text(
+        (x_positions[0] + x_positions[1]) / 2,
+        count_y,
+        "个数",
+        ha="center",
+        va="center",
+        fontsize=8.8,
+        family=font_family,
+    )
+    for column_index, count in enumerate(best_counts, start=1):
+        x = (x_positions[column_index] + x_positions[column_index + 1]) / 2
+        ax.text(x, count_y, str(count), ha="center", va="center", fontsize=8.8, family=font_family)
+
+    fig.savefig(output_path, bbox_inches="tight", pad_inches=0.08)
+    plt.close(fig)
+
+
+def write_ablation_table_csv(summary_rows, benchmark_ids, algorithms, metric, output_path):
+    spec = METRIC_SPECS[metric]
+    mean_key = spec["mean"]
+    std_key = spec["std"]
+    higher_is_better = spec["higher_is_better"]
+    index = ablation_index(summary_rows)
+    headers = [ABLATION_ALGORITHM_LABELS.get(algorithm, algorithm) for algorithm in algorithms]
+    best_counts = [0] * len(algorithms)
+
+    with output_path.open("w", encoding="utf-8-sig", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=["benchmark_id", "function"] + headers)
+        writer.writeheader()
+        for benchmark_id in benchmark_ids:
+            output_row = {"benchmark_id": benchmark_id, "function": function_label(benchmark_id)}
+            best_value = ablation_best_value(index, benchmark_id, algorithms, mean_key, higher_is_better)
+            for algorithm_index, algorithm in enumerate(algorithms):
+                header = headers[algorithm_index]
+                row = index.get((benchmark_id, algorithm))
+                if row is None:
+                    output_row[header] = ""
+                    continue
+                relative_mean = relative_to_best(row[mean_key], best_value, higher_is_better)
+                output_row[header] = f"{format_scientific(relative_mean)}±{format_scientific(row[std_key])}"
+                if is_best_cell(row[mean_key], best_value):
+                    best_counts[algorithm_index] += 1
+            writer.writerow(output_row)
+
+        count_row = {"benchmark_id": "count", "function": "个数"}
+        for header, count in zip(headers, best_counts):
+            count_row[header] = count
+        writer.writerow(count_row)
+
+
+def tied_ranks(values, higher_is_better):
+    values = np.asarray(values, dtype=float)
+    ranked_values = -values if higher_is_better else values
+    order = np.argsort(ranked_values)
+    ranks = np.empty(len(values), dtype=float)
+    index = 0
+    while index < len(values):
+        end = index + 1
+        while end < len(values) and np.isclose(ranked_values[order[end]], ranked_values[order[index]]):
+            end += 1
+        average_rank = (index + 1 + end) / 2.0
+        ranks[order[index:end]] = average_rank
+        index = end
+    return ranks
+
+
+def chi_square_sf(value, degrees_of_freedom):
+    if value < 0:
+        return float("nan")
+    if degrees_of_freedom <= 0:
+        return float("nan")
+    if degrees_of_freedom % 2 == 0:
+        half_value = value / 2.0
+        terms = sum(half_value**index / math.factorial(index) for index in range(degrees_of_freedom // 2))
+        return float(math.exp(-half_value) * terms)
+
+    # Wilson-Hilferty normal approximation for odd degrees of freedom.
+    z_value = ((value / degrees_of_freedom) ** (1.0 / 3.0) - (1.0 - 2.0 / (9.0 * degrees_of_freedom)))
+    z_value /= math.sqrt(2.0 / (9.0 * degrees_of_freedom))
+    return float(0.5 * math.erfc(z_value / math.sqrt(2.0)))
+
+
+def friedman_rank_rows(summary_rows, benchmark_ids, algorithms, metric):
+    spec = METRIC_SPECS[metric]
+    mean_key = spec["mean"]
+    higher_is_better = spec["higher_is_better"]
+    index = ablation_index(summary_rows)
+    rank_sums = dict.fromkeys(algorithms, 0.0)
+    best_counts = dict.fromkeys(algorithms, 0)
+    complete_blocks = []
+
+    for benchmark_id in benchmark_ids:
+        if any((benchmark_id, algorithm) not in index for algorithm in algorithms):
+            continue
+        values = np.asarray([index[(benchmark_id, algorithm)][mean_key] for algorithm in algorithms], dtype=float)
+        if not np.all(np.isfinite(values)):
+            continue
+        ranks = tied_ranks(values, higher_is_better)
+        complete_blocks.append(values)
+        for algorithm, rank in zip(algorithms, ranks):
+            rank_sums[algorithm] += float(rank)
+            if math.isclose(rank, 1.0, rel_tol=1e-12, abs_tol=1e-12):
+                best_counts[algorithm] += 1
+
+    block_count = len(complete_blocks)
+    if block_count == 0:
+        raise ValueError(f"No complete ablation blocks for metric {metric!r}.")
+
+    average_ranks = {algorithm: rank_sums[algorithm] / block_count for algorithm in algorithms}
+    k = len(algorithms)
+    friedman_statistic = (
+        12.0 * block_count / (k * (k + 1.0)) * sum(value * value for value in average_ranks.values())
+        - 3.0 * block_count * (k + 1.0)
+    )
+    p_value = chi_square_sf(friedman_statistic, k - 1)
+    try:
+        from scipy.stats import chi2
+
+        p_value = float(chi2.sf(friedman_statistic, k - 1))
+    except Exception:
+        pass
+
+    rows = [
+        {
+            "metric": metric,
+            "algorithm": algorithm,
+            "label": ABLATION_ALGORITHM_LABELS.get(algorithm, algorithm),
+            "average_rank": average_ranks[algorithm],
+            "best_count": best_counts[algorithm],
+            "benchmark_count": block_count,
+            "friedman_statistic": friedman_statistic,
+            "p_value": p_value,
+        }
+        for algorithm in algorithms
+    ]
+    return sorted(rows, key=lambda item: (item["average_rank"], -item["best_count"], item["label"]))
+
+
+def write_friedman_rank_csv(rows, output_path):
+    with output_path.open("w", encoding="utf-8-sig", newline="") as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=[
+                "metric",
+                "algorithm",
+                "label",
+                "average_rank",
+                "best_count",
+                "benchmark_count",
+                "friedman_statistic",
+                "p_value",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def draw_friedman_rank_bar(rows, output_path, show_title=True):
+    colors = ["#f1b183", "#7fa6d9", "#a7dce0", "#4e8fc7", "#b7cee8", "#9fc490", "#d7b9d5"]
+    labels = [row["label"] for row in rows]
+    values = [row["average_rank"] for row in rows]
+    metric_label = METRIC_SPECS[rows[0]["metric"]]["label"]
+
+    font_family = ["Times New Roman", "SimSun"]
+    fig, ax = plt.subplots(figsize=(7.2, 4.2), dpi=300)
+    bars = ax.bar(labels, values, color=colors[: len(rows)], edgecolor="#606060", linewidth=0.7)
+    ax.set_ylabel("排名", fontsize=11, family=font_family)
+    ax.set_xlabel("算法变体", fontsize=11, family=font_family)
+    if show_title:
+        p_value = rows[0]["p_value"]
+        p_text = f", p={p_value:.3g}" if np.isfinite(p_value) else ""
+        ax.set_title(f"{metric_label} 的 Friedman 平均排名{p_text}", fontsize=12, fontweight="bold", family=font_family)
+    ax.set_ylim(0, max(values) * 1.22)
+    ax.grid(axis="y", linestyle="--", linewidth=0.6, alpha=0.35)
+    ax.set_axisbelow(True)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(axis="x", labelsize=8.5, rotation=20)
+    ax.tick_params(axis="y", labelsize=9.2)
+
+    for bar, value in zip(bars, values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + max(values) * 0.025,
+            f"{value:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=9.0,
+            family=font_family,
+        )
+
+    fig.tight_layout()
+    fig.savefig(output_path, bbox_inches="tight", pad_inches=0.06)
+    plt.close(fig)
+
+
+def read_filtered_wilcoxon_rows(input_dir):
+    path = input_dir / "wilcoxon_ablation_vs_moiabc_results.csv"
+    rows = read_csv_rows(path)
+    return [row for row in rows if row["benchmark_id"] not in EXCLUDED_DUPLICATE_BENCHMARK_IDS]
+
+
+def ablation_effect_rows(wilcoxon_rows, algorithms):
+    rows = []
+    variants = [algorithm for algorithm in algorithms if algorithm != "MOIABC"]
+    for variant in variants:
+        for metric in ["hypervolume", "spacing", "best_sum"]:
+            metric_rows = [
+                row
+                for row in wilcoxon_rows
+                if row["base_algorithm"] == variant and row["metric"] == metric
+            ]
+            if not metric_rows:
+                continue
+            positive_rows = [row for row in metric_rows if float(row["mean_difference"]) > 0.0]
+            significant_rows = [
+                row
+                for row in metric_rows
+                if float(row["mean_difference"]) > 0.0 and float(row["p_improved"]) < 0.05
+            ]
+            opposite_rows = [
+                row
+                for row in metric_rows
+                if float(row["mean_difference"]) < 0.0 and float(row["p_two_sided"]) < 0.05
+            ]
+            rows.append(
+                {
+                    "variant": variant,
+                    "label": ABLATION_ALGORITHM_LABELS.get(variant, variant),
+                    "metric": metric,
+                    "benchmark_count": len(metric_rows),
+                    "worse_count": len(positive_rows),
+                    "significant_worse_count": len(significant_rows),
+                    "opposite_significant_count": len(opposite_rows),
+                    "mean_difference": float(np.mean([float(row["mean_difference"]) for row in metric_rows])),
+                }
+            )
+    return rows
+
+
+def write_ablation_effect_csv(rows, output_path):
+    with output_path.open("w", encoding="utf-8-sig", newline="") as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=[
+                "variant",
+                "label",
+                "metric",
+                "benchmark_count",
+                "worse_count",
+                "significant_worse_count",
+                "opposite_significant_count",
+                "mean_difference",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def draw_ablation_effect_table(rows, output_path, show_title=True):
+    metrics = ["hypervolume", "spacing", "best_sum"]
+    variants = []
+    for row in rows:
+        if row["variant"] not in variants:
+            variants.append(row["variant"])
+    index = {(row["metric"], row["variant"]): row for row in rows}
+
+    column_headers = ["指标"] + [ABLATION_ALGORITHM_LABELS.get(variant, variant) for variant in variants]
+    column_widths = [1.35] + [2.15] * len(variants)
+    total_width = sum(column_widths)
+    row_count = len(metrics)
+    title_space = 0.58 if show_title else 0.05
+    fig_width = max(10.8, total_width * 0.82)
+    fig_height = 2.7 + title_space
+
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=300)
+    ax.set_axis_off()
+    ax.set_xlim(0, total_width)
+    ax.set_ylim(0, row_count + 1.45 + title_space)
+
+    font_family = ["Times New Roman", "SimSun"]
+    x_positions = np.cumsum([0] + column_widths)
+
+    if show_title:
+        ax.text(
+            total_width / 2,
+            row_count + 1.36,
+            "MOIABC 消融模块退化统计",
+            ha="center",
+            va="center",
+            fontsize=13,
+            fontweight="bold",
+            family=font_family,
+        )
+
+    top_y = row_count + 1.02
+    header_y = row_count + 0.58
+    bottom_y = 0.05
+    ax.hlines(
+        [top_y, header_y - 0.25, bottom_y],
+        0,
+        total_width,
+        colors="black",
+        linewidths=[1.35, 0.75, 1.35],
+    )
+
+    for column_index, header in enumerate(column_headers):
+        x = (x_positions[column_index] + x_positions[column_index + 1]) / 2
+        ax.text(x, header_y, header, ha="center", va="center", fontsize=9.2, family=font_family)
+
+    for row_index, metric in enumerate(metrics):
+        y = row_count - row_index - 0.02
+        ax.text(
+            (x_positions[0] + x_positions[1]) / 2,
+            y,
+            METRIC_SPECS[metric]["label"],
+            ha="center",
+            va="center",
+            fontsize=9.0,
+            family=font_family,
+        )
+        for column_index, variant in enumerate(variants, start=1):
+            row = index[(metric, variant)]
+            text = (
+                f"{row['worse_count']}/{row['benchmark_count']}\n"
+                f"显著 {row['significant_worse_count']}，反向 {row['opposite_significant_count']}"
+            )
+            fontweight = "bold" if row["significant_worse_count"] > row["opposite_significant_count"] else "normal"
+            x = (x_positions[column_index] + x_positions[column_index + 1]) / 2
+            ax.text(
+                x,
+                y,
+                text,
+                ha="center",
+                va="center",
+                fontsize=8.0,
+                fontweight=fontweight,
+                family=font_family,
+                linespacing=0.95,
+            )
+
+    fig.savefig(output_path, bbox_inches="tight", pad_inches=0.08)
+    plt.close(fig)
+
+
+def draw_ablation_outputs(args):
+    input_dir = args.input_dir if args.input_dir != DEFAULT_INPUT_DIR else DEFAULT_ABLATION_INPUT_DIR
+    output_dir = args.output_dir or input_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    summary_path = find_csv(input_dir, ["moiabc_ablation_summary_by_function.csv"])
+    summary_rows = exclude_duplicate_rows(normalize_ablation_rows(read_csv_rows(summary_path)))
+    metrics = available_metrics(summary_rows)
+    if args.metric:
+        if args.metric not in metrics:
+            available = ", ".join(metrics) or "none"
+            raise ValueError(f"Metric {args.metric!r} is not available. Available metrics: {available}")
+        metrics = [args.metric]
+
+    benchmark_ids = sorted({row["benchmark_id"] for row in summary_rows}, key=benchmark_sort_key)
+    algorithms = ablation_algorithms(summary_rows)
+
+    outputs = []
+    if args.friedman:
+        all_rank_rows = []
+        for metric in metrics:
+            suffix = METRIC_SPECS[metric]["suffix"]
+            rank_rows = friedman_rank_rows(summary_rows, benchmark_ids, algorithms, metric)
+            output_png = output_dir / f"moiabc_ablation_friedman_{suffix}_rank.png"
+            output_csv = output_png.with_suffix(".csv")
+            draw_friedman_rank_bar(rank_rows, output_png, show_title=not args.no_title)
+            write_friedman_rank_csv(rank_rows, output_csv)
+            outputs.extend([output_png, output_csv])
+            all_rank_rows.extend(rank_rows)
+        output_csv = output_dir / "moiabc_ablation_friedman_all_ranks.csv"
+        write_friedman_rank_csv(all_rank_rows, output_csv)
+        outputs.append(output_csv)
+    else:
+        for metric in metrics:
+            suffix = METRIC_SPECS[metric]["suffix"]
+            output_png = output_dir / f"moiabc_ablation_{suffix}_table.png"
+            output_csv = output_png.with_suffix(".csv")
+            draw_ablation_table(
+                summary_rows,
+                benchmark_ids,
+                algorithms,
+                metric,
+                output_png,
+                show_title=not args.no_title,
+            )
+            write_ablation_table_csv(summary_rows, benchmark_ids, algorithms, metric, output_csv)
+            outputs.extend([output_png, output_csv])
+
+        wilcoxon_rows = read_filtered_wilcoxon_rows(input_dir)
+        effect_rows = ablation_effect_rows(wilcoxon_rows, algorithms)
+        output_png = output_dir / "moiabc_ablation_effect_summary_table.png"
+        output_csv = output_png.with_suffix(".csv")
+        draw_ablation_effect_table(effect_rows, output_png, show_title=not args.no_title)
+        write_ablation_effect_csv(effect_rows, output_csv)
+        outputs.extend([output_png, output_csv])
+
+    for output in outputs:
+        print(output)
+
+
 def write_table_csv_paper(summary_rows, benchmark_ids, combinations, metric, output_path):
     spec = METRIC_SPECS[metric]
     mean_key = spec["mean"]
@@ -779,6 +1361,10 @@ def draw_table_paper(summary_rows, benchmark_ids, combinations, metric, output_p
 def main():
     configure_fonts()
     args = parse_args()
+    if args.mode == "ablation":
+        draw_ablation_outputs(args)
+        return
+
     input_dir = args.input_dir
     output_dir = args.output_dir or input_dir
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -790,7 +1376,7 @@ def main():
             "sensitivity_summary_by_function.csv",
         ],
     )
-    summary_rows = exclude_three_objective_l_rows(normalize_rows(read_csv_rows(summary_path)))
+    summary_rows = exclude_duplicate_rows(normalize_rows(read_csv_rows(summary_path)))
 
     try:
         rank_path = find_csv(

@@ -98,9 +98,9 @@ def scout_bee_phase(food_sources, values, trials, bounds, objective_function, li
 def artificial_bee_colony(
     objective_function,
     bounds,
-    bee=30,
-    max_iter=500,
-    limit=100,
+    bee=80,
+    max_iter=800,
+    limit=160,
     seed=None,
 ):
     """经典人工蜂群算法，默认求解最小化问题。"""

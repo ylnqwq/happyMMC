@@ -28,7 +28,7 @@
 - 边界：`[-100, 100]`
 - 默认测试集：`CEC2022`
 - 默认算法：全部单目标算法
-- 公共参数：`bee=75, max_iter=750, limit=150`
+- 公共参数：`bee=80, max_iter=800, limit=160`
 - IABC 参数：`tournament_size=3, elite_rate=0.25, elimination_rate=0.15`
 
 当前单目标测试函数：
@@ -56,15 +56,16 @@
 当前默认配置：
 
 - `RUN_TIMES = 10`
-- 默认测试集：`ZDT` 和完整 `CEC2020_MMO`
+- 默认测试集：`ZDT`、`CEC2009_UF` 和指定 `CEC2020_MMO`
 - 默认算法：`MOABC`, `MOIABC`
-- 公共参数：`bee=75, max_iter=750, limit=150, archive_size=100`
+- 公共参数：`bee=80, max_iter=800, limit=160, archive_size=100`
 - MOIABC 参数：`tournament_size=3, elite_rate=0.05, elimination_rate=0.10`
 
 当前多目标测试函数：
 
 - `ZDT`：`ZDT1`, `ZDT2`, `ZDT3`, `ZDT4`, `ZDT6`
-- `CEC2020_MMO`：启用 22 个 MMF 测试函数，包括 15 个双目标函数 `MMF1`, `MMF2`, `MMF4`, `MMF5`, `MMF7`, `MMF8`, `MMF10`, `MMF11`, `MMF12`, `MMF13`, `MMF1_E`, `MMF10_L`, `MMF11_L`, `MMF12_L`, `MMF13_L`，以及 7 个三目标函数 `MMF14`, `MMF15`, `MMF14_A`, `MMF15_A`, `MMF16_L1`, `MMF16_L2`, `MMF16_L3`
+- `CEC2009_UF`：`UF1`, `UF2`, `UF3`, `UF4`, `UF5`, `UF6`, `UF7`, `UF8`, `UF9`, `UF10`
+- `CEC2020_MMO`：`MMF1`, `MMF2`, `MMF4`, `MMF5`, `MMF7`, `MMF8`, `MMF10`, `MMF11`, `MMF12`, `MMF13`
 
 多目标统计指标：
 
@@ -97,7 +98,7 @@ IABC/
 |
 |-- multi_objective/
 |   |-- run_multi_objective_comparison.py          # 多目标实验入口
-|   |-- multiobjective_benchmarks.py     # ZDT / CEC2020 MMO 多目标测试函数
+|   |-- multiobjective_benchmarks.py     # ZDT / CEC2009 UF / CEC2020 MMO 多目标测试函数
 |   |-- mo_utils.py                      # Pareto 排序、拥挤距离、档案维护等工具
 |   |-- statistical_tests.py             # Wilcoxon 与平均排名统计
 |   |-- algorithms/
@@ -200,9 +201,9 @@ ENABLED_FUNCTION_IDS = []
 ENABLED_ALGORITHMS = []
 
 COMMON_PARAMS = {
-    "bee": 75,
-    "max_iter": 750,
-    "limit": 150,
+    "bee": 80,
+    "max_iter": 800,
+    "limit": 160,
 }
 ```
 
@@ -212,14 +213,14 @@ COMMON_PARAMS = {
 
 ```python
 RUN_TIMES = 10
-ENABLED_SUITES = ["ZDT", "CEC2020_MMO"]
+ENABLED_SUITES = ["ZDT", "CEC2009_UF", "CEC2020_MMO"]
 ENABLED_FUNCTION_IDS = []
 ENABLED_ALGORITHMS = ["MOABC", "MOIABC"]
 
 COMMON_PARAMS = {
-    "bee": 75,
-    "max_iter": 750,
-    "limit": 150,
+    "bee": 80,
+    "max_iter": 800,
+    "limit": 160,
     "archive_size": 100,
 }
 
@@ -269,11 +270,18 @@ ENABLED_SUITES = ["ZDT"]
 ENABLED_FUNCTION_IDS = ["ZDT1", "ZDT4"]
 ```
 
+只运行 CEC2009 UF1 和 UF10：
+
+```python
+ENABLED_SUITES = ["CEC2009_UF"]
+ENABLED_FUNCTION_IDS = ["UF1", "UF10"]
+```
+
 只运行部分 CEC2020 MMO 函数：
 
 ```python
 ENABLED_SUITES = ["CEC2020_MMO"]
-ENABLED_FUNCTION_IDS = ["MMF1", "MMF10", "MMF13_L"]
+ENABLED_FUNCTION_IDS = ["MMF1", "MMF10", "MMF13"]
 ```
 
 只运行指定单目标算法：
@@ -384,7 +392,7 @@ multi_objective/mo_comparison_results/
 - 如果修改单目标实验维度，需要补充对应维度的 CEC 数据。
 - `CEC2022` 单目标测试集当前为 12 个函数，即 `CEC2022_F1` 到 `CEC2022_F12`。
 - `RUN_TIMES = 1` 只适合快速调试；正式实验建议使用 30 次或更多独立运行。
-- `RUN_TIMES`、`bee`、`max_iter`、测试函数数量和算法数量会直接影响运行时间。
+- `RUN_TIMES`、`bee`、`max_iter`、`limit`、测试函数数量和算法数量会直接影响运行时间。
 - CSV 使用 `utf-8-sig` 编码保存，便于使用 Excel 打开。
 - 图像中文字体依赖系统字体，脚本默认尝试使用 `Microsoft YaHei`、`SimHei`、`SimSun`。
 - `.gitignore` 已忽略结果目录、Python 缓存、`.env` 和常见密钥文件，避免误提交本地结果或凭据。

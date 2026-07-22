@@ -7,6 +7,8 @@ from multi_objective.mo_utils import (
     evaluate_objectives,
     greedy_select_multi,
     population_scores,
+    reinitialize_source,
+    select_partner,
     update_archive,
     validate_bounds,
 )
@@ -31,13 +33,6 @@ def initialize_food_sources(food_number, bounds, objective_function):
     return food_sources, objectives, trials
 
 
-def _select_partner(food_number, index):
-    partner_index = np.random.randint(food_number)
-    while partner_index == index:
-        partner_index = np.random.randint(food_number)
-    return partner_index
-
-
 def _tournament_select(objectives, tournament_size=3):
     ranks, distances = population_scores(objectives)
     candidates = np.random.choice(len(objectives), size=min(tournament_size, len(objectives)), replace=False)
@@ -54,7 +49,7 @@ def create_neighbor(food_sources, objectives, index, bounds, archive_solutions, 
     food_number, dimension = food_sources.shape
     neighbor = food_sources[index].copy()
     parameter_index = np.random.randint(dimension)
-    partner_index = _select_partner(food_number, index)
+    partner_index = select_partner(food_number, index)
     elite_index = _tournament_select(objectives)
 
     progress = (iteration + 1) / max(1, max_iter)
@@ -99,9 +94,7 @@ def scout_and_elimination_phase(food_sources, objectives, trials, bounds, object
 
     for index in range(len(food_sources)):
         if trials[index] >= limit or index in worst_indexes:
-            food_sources[index] = np.random.uniform(lower_bounds, upper_bounds)
-            objectives[index] = objective_function(food_sources[index])
-            trials[index] = 0
+            reinitialize_source(food_sources, objectives, trials, index, lower_bounds, upper_bounds, objective_function)
 
 
 def zhao_imoabc(

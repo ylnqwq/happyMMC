@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import csv
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -17,6 +16,7 @@ if str(MODULE_DIR) not in sys.path:
 
 from single_objective.algorithms import IABC
 from single_objective.single_objective_benchmarks import CEC2022_BENCHMARKS
+from experiment_utils import format_float, print_progress, save_rows_to_csv, select_enabled_items
 
 
 RUN_TIMES = 30
@@ -44,30 +44,19 @@ ELIMINATION_RATES = [0.05, 0.10, 0.15, 0.20, 0.25]
 
 
 def get_enabled_benchmarks():
-    benchmarks = []
-    for suite_name in ENABLED_SUITES:
-        if suite_name not in BENCHMARK_SUITES:
-            valid_names = ", ".join(BENCHMARK_SUITES)
-            raise ValueError(f"Unknown suite: {suite_name}. Valid suites: {valid_names}")
-        benchmarks.extend(BENCHMARK_SUITES[suite_name])
-
-    if ENABLED_FUNCTION_IDS:
-        enabled_ids = set(ENABLED_FUNCTION_IDS)
-        benchmarks = [item for item in benchmarks if item["id"] in enabled_ids]
-
-    if not benchmarks:
-        raise ValueError("No benchmark selected. Check ENABLED_SUITES or ENABLED_FUNCTION_IDS.")
-    return benchmarks
+    return select_enabled_items(
+        ENABLED_SUITES,
+        BENCHMARK_SUITES,
+        ENABLED_FUNCTION_IDS,
+        suite_label="benchmark suite",
+        empty_message="No benchmark selected. Check ENABLED_SUITES or ENABLED_FUNCTION_IDS.",
+    )
 
 
 def parameter_grid():
     for elite_rate in ELITE_RATES:
         for elimination_rate in ELIMINATION_RATES:
             yield elite_rate, elimination_rate
-
-
-def format_float(value, precision=16):
-    return f"{float(value):.{precision}f}"
 
 
 def run_once(benchmark, seed, elite_rate, elimination_rate):
@@ -121,15 +110,6 @@ def print_configuration(benchmarks):
     print(f"Parameter combinations: {total_combinations}")
     print(f"Total IABC runs: {total_runs}")
     print(f"Parallel workers: {PARALLEL_WORKERS}")
-
-
-def save_rows(filename, rows):
-    if not rows:
-        return
-    with open(filename, "w", newline="", encoding="utf-8-sig") as file:
-        writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
 
 
 def summarize_results(rows):
@@ -198,13 +178,6 @@ def rank_parameter_sets(summary_rows):
     return sorted(rank_rows, key=lambda item: (item["average_rank"], -item["best_count"]))
 
 
-def print_progress(done, total, prefix="", width=32):
-    ratio = done / total
-    completed = int(width * ratio)
-    bar = "#" * completed + "-" * (width - completed)
-    print(f"\r{prefix} [{bar}] {done}/{total} {ratio * 100:6.2f}%", end="", flush=True)
-
-
 def main():
     OUTPUT_DIR.mkdir(exist_ok=True)
     benchmarks = get_enabled_benchmarks()
@@ -254,9 +227,9 @@ def main():
     summary_rows = summarize_results(rows)
     rank_rows = rank_parameter_sets(summary_rows)
 
-    save_rows(OUTPUT_DIR / "sensitivity_detail_results.csv", detail_rows)
-    save_rows(OUTPUT_DIR / "sensitivity_summary_by_function.csv", summary_rows)
-    save_rows(OUTPUT_DIR / "sensitivity_average_rank.csv", rank_rows)
+    save_rows_to_csv(OUTPUT_DIR / "sensitivity_detail_results.csv", detail_rows)
+    save_rows_to_csv(OUTPUT_DIR / "sensitivity_summary_by_function.csv", summary_rows)
+    save_rows_to_csv(OUTPUT_DIR / "sensitivity_average_rank.csv", rank_rows)
 
     print("\n" + "=" * 80)
     print("IABC parameter sensitivity finished")

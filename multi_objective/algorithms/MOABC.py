@@ -4,23 +4,18 @@ import numpy as np
 
 from multi_objective.mo_utils import (
     best_sum_history_value,
-    evaluate_objectives,
     greedy_select_multi,
+    initialize_random_sources,
     population_scores,
+    reinitialize_source,
+    select_partner,
     update_archive,
     validate_bounds,
 )
 
 
 def initialize_food_sources(food_number, bounds, objective_function):
-    bounds = validate_bounds(bounds)
-    lower_bounds = bounds[:, 0]
-    upper_bounds = bounds[:, 1]
-
-    food_sources = np.random.uniform(lower_bounds, upper_bounds, size=(food_number, len(bounds)))
-    objectives = evaluate_objectives(objective_function, food_sources)
-    trials = np.zeros(food_number, dtype=int)
-    return food_sources, objectives, trials
+    return initialize_random_sources(food_number, bounds, objective_function)
 
 
 def create_neighbor(food_sources, index, bounds):
@@ -28,9 +23,7 @@ def create_neighbor(food_sources, index, bounds):
     neighbor = food_sources[index].copy()
 
     parameter_index = np.random.randint(dimension)
-    partner_index = np.random.randint(food_number)
-    while partner_index == index:
-        partner_index = np.random.randint(food_number)
+    partner_index = select_partner(food_number, index)
 
     phi = np.random.uniform(-1.0, 1.0)
     neighbor[parameter_index] = (
@@ -79,9 +72,7 @@ def scout_bee_phase(food_sources, objectives, trials, bounds, objective_function
 
     for i in range(len(food_sources)):
         if trials[i] >= limit:
-            food_sources[i] = np.random.uniform(lower_bounds, upper_bounds)
-            objectives[i] = objective_function(food_sources[i])
-            trials[i] = 0
+            reinitialize_source(food_sources, objectives, trials, i, lower_bounds, upper_bounds, objective_function)
 
 
 def multi_objective_abc(

@@ -2,28 +2,18 @@
 
 import numpy as np
 
-
-def calculate_fitness(values):
-    """将最小化目标函数值转换为适应度，目标值越小适应度越大"""
-    values = np.asarray(values, dtype=float)
-    fitness = np.empty_like(values, dtype=float)
-
-    non_negative = values >= 0
-    fitness[non_negative] = 1.0 / (1.0 + values[non_negative])
-    fitness[~non_negative] = 1.0 + np.abs(values[~non_negative])
-    return fitness
+from single_objective.so_utils import (
+    calculate_fitness,
+    initialize_random_sources,
+    reinitialize_source,
+    select_partner,
+    validate_bounds,
+)
 
 
 def initialize_food_sources(food_number, bounds, objective_function):
     """随机初始化蜜源位置、目标函数值和试探次数"""
-    bounds = np.asarray(bounds, dtype=float)
-    lower_bounds = bounds[:, 0]
-    upper_bounds = bounds[:, 1]
-
-    food_sources = np.random.uniform(lower_bounds, upper_bounds, size=(food_number, len(bounds)))
-    values = np.array([objective_function(source) for source in food_sources], dtype=float)
-    trials = np.zeros(food_number, dtype=int)
-    return food_sources, values, trials
+    return initialize_random_sources(food_number, bounds, objective_function)
 
 
 def create_neighbor(food_sources, index, bounds):
@@ -32,9 +22,7 @@ def create_neighbor(food_sources, index, bounds):
     neighbor = food_sources[index].copy()
 
     parameter_index = np.random.randint(dimension)
-    partner_index = np.random.randint(food_number)
-    while partner_index == index:
-        partner_index = np.random.randint(food_number)
+    partner_index = select_partner(food_number, index)
 
     phi = np.random.uniform(-1.0, 1.0)
     neighbor[parameter_index] = (
@@ -90,9 +78,7 @@ def scout_bee_phase(food_sources, values, trials, bounds, objective_function, li
 
     for i in range(len(food_sources)):
         if trials[i] >= limit:
-            food_sources[i] = np.random.uniform(lower_bounds, upper_bounds)
-            values[i] = objective_function(food_sources[i])
-            trials[i] = 0
+            reinitialize_source(food_sources, values, trials, i, lower_bounds, upper_bounds, objective_function)
 
 
 def artificial_bee_colony(
@@ -110,12 +96,7 @@ def artificial_bee_colony(
         used_seed = int(seed)
     np.random.seed(used_seed)
 
-    bounds = np.asarray(bounds, dtype=float)
-    if bounds.ndim != 2 or bounds.shape[1] != 2:
-        raise ValueError("bounds 必须是形如 [(lower, upper), ...] 的二维数组或列表")
-    if np.any(bounds[:, 0] >= bounds[:, 1]):
-        raise ValueError("每个变量的下界必须小于上界")
-
+    bounds = validate_bounds(bounds)
     food_sources, values, trials = initialize_food_sources(bee, bounds, objective_function)
 
     best_index = np.argmin(values)

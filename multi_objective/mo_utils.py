@@ -16,6 +16,29 @@ def evaluate_objectives(objective_function, solutions):
     return np.array([objective_function(solution) for solution in solutions], dtype=float)
 
 
+def select_partner(item_count, current_index):
+    partner_index = np.random.randint(item_count)
+    while partner_index == current_index:
+        partner_index = np.random.randint(item_count)
+    return partner_index
+
+
+def initialize_random_sources(food_number, bounds, objective_function):
+    bounds = validate_bounds(bounds)
+    lower_bounds = bounds[:, 0]
+    upper_bounds = bounds[:, 1]
+    food_sources = np.random.uniform(lower_bounds, upper_bounds, size=(food_number, len(bounds)))
+    objectives = evaluate_objectives(objective_function, food_sources)
+    trials = np.zeros(food_number, dtype=int)
+    return food_sources, objectives, trials
+
+
+def reinitialize_source(sources, objectives, trials, index, lower_bounds, upper_bounds, objective_function):
+    sources[index] = np.random.uniform(lower_bounds, upper_bounds)
+    objectives[index] = objective_function(sources[index])
+    trials[index] = 0
+
+
 def dominates(left, right):
     left = np.asarray(left, dtype=float)
     right = np.asarray(right, dtype=float)
@@ -173,3 +196,54 @@ def best_sum_history_value(archive_objectives):
     if len(archive_objectives) == 0:
         return np.inf
     return float(np.min(np.sum(archive_objectives, axis=1)))
+
+
+def two_objective_hypervolume(objectives, reference_point):
+    objectives = np.asarray(objectives, dtype=float)
+    reference_point = np.asarray(reference_point, dtype=float)
+    valid_mask = np.all(objectives < reference_point, axis=1)
+    points = objectives[valid_mask]
+    if len(points) == 0:
+        return 0.0
+
+    points = points[non_dominated_mask(points)]
+    points = points[np.argsort(points[:, 0])]
+
+    hypervolume = 0.0
+    for index, point in enumerate(points):
+        next_x = points[index + 1, 0] if index + 1 < len(points) else reference_point[0]
+        width = max(0.0, next_x - point[0])
+        height = max(0.0, reference_point[1] - point[1])
+        hypervolume += width * height
+    return float(hypervolume)
+
+
+def three_objective_hypervolume(objectives, reference_point):
+    objectives = np.asarray(objectives, dtype=float)
+    reference_point = np.asarray(reference_point, dtype=float)
+    valid_mask = np.all(objectives < reference_point, axis=1)
+    points = objectives[valid_mask]
+    if len(points) == 0:
+        return 0.0
+
+    points = points[non_dominated_mask(points)]
+    points = points[np.argsort(points[:, 0])]
+
+    hypervolume = 0.0
+    for index, point in enumerate(points):
+        next_x = points[index + 1, 0] if index + 1 < len(points) else reference_point[0]
+        width = max(0.0, next_x - point[0])
+        if width <= 0.0:
+            continue
+        slice_points = points[: index + 1, 1:3]
+        hypervolume += width * two_objective_hypervolume(slice_points, reference_point[1:3])
+    return float(hypervolume)
+
+
+def calculate_hypervolume(objectives, reference_point):
+    objective_count = np.asarray(objectives).shape[1]
+    if objective_count == 2:
+        return two_objective_hypervolume(objectives, reference_point)
+    if objective_count == 3:
+        return three_objective_hypervolume(objectives, reference_point)
+    raise ValueError(f"暂不支持 {objective_count} 目标超体积计算")

@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import csv
 import os
 import sys
 import time
@@ -19,7 +18,7 @@ if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
 from multi_objective.algorithms import MOABC, MOIABC, MOPSO, NSGA2, Zhao_IMOABC, Zhou_IMOABC
-from multi_objective.mo_utils import non_dominated_mask, spacing_metric
+from multi_objective.mo_utils import calculate_hypervolume, non_dominated_mask, spacing_metric
 from multi_objective.multiobjective_benchmarks import CEC2009_UF_BENCHMARKS, CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
 from multi_objective.statistical_tests import (
     print_average_rank_overview,
@@ -27,6 +26,7 @@ from multi_objective.statistical_tests import (
     save_average_rank_results,
     save_wilcoxon_results,
 )
+from experiment_utils import print_progress, save_rows_to_csv, select_enabled_items, select_named_items
 
 
 RUN_TIMES = 10
@@ -122,57 +122,6 @@ STATISTICAL_TEST_METRICS = [
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "SimSun"]
 plt.rcParams["axes.unicode_minus"] = False
 LEGEND_FONT_SIZE = 14
-
-
-def two_objective_hypervolume(objectives, reference_point):
-    objectives = np.asarray(objectives, dtype=float)
-    reference_point = np.asarray(reference_point, dtype=float)
-    valid_mask = np.all(objectives < reference_point, axis=1)
-    points = objectives[valid_mask]
-    if len(points) == 0:
-        return 0.0
-
-    points = points[non_dominated_mask(points)]
-    points = points[np.argsort(points[:, 0])]
-
-    hypervolume = 0.0
-    for index, point in enumerate(points):
-        next_x = points[index + 1, 0] if index + 1 < len(points) else reference_point[0]
-        width = max(0.0, next_x - point[0])
-        height = max(0.0, reference_point[1] - point[1])
-        hypervolume += width * height
-    return float(hypervolume)
-
-
-def three_objective_hypervolume(objectives, reference_point):
-    objectives = np.asarray(objectives, dtype=float)
-    reference_point = np.asarray(reference_point, dtype=float)
-    valid_mask = np.all(objectives < reference_point, axis=1)
-    points = objectives[valid_mask]
-    if len(points) == 0:
-        return 0.0
-
-    points = points[non_dominated_mask(points)]
-    points = points[np.argsort(points[:, 0])]
-
-    hypervolume = 0.0
-    for index, point in enumerate(points):
-        next_x = points[index + 1, 0] if index + 1 < len(points) else reference_point[0]
-        width = max(0.0, next_x - point[0])
-        if width <= 0.0:
-            continue
-        slice_points = points[: index + 1, 1:3]
-        hypervolume += width * two_objective_hypervolume(slice_points, reference_point[1:3])
-    return float(hypervolume)
-
-
-def calculate_hypervolume(objectives, reference_point):
-    objective_count = np.asarray(objectives).shape[1]
-    if objective_count == 2:
-        return two_objective_hypervolume(objectives, reference_point)
-    if objective_count == 3:
-        return three_objective_hypervolume(objectives, reference_point)
-    raise ValueError(f"暂不支持 {objective_count} 目标超体积计算")
 
 
 def run_algorithm(algorithm, benchmark, seed):
@@ -289,44 +238,29 @@ def save_results_to_csv(filename, grouped_results):
                 }
             )
 
-    with open(filename, "w", newline="", encoding="utf-8-sig") as file:
-        writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def save_rows_to_csv(filename, rows):
-    if not rows:
-        return
-
-    with open(filename, "w", newline="", encoding="utf-8-sig") as file:
-        writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
+    save_rows_to_csv(filename, rows)
 
 
 def save_archive_points(filename, grouped_results):
     objective_count = max(
         item["archive_objectives"].shape[1] for results in grouped_results.values() for item in results
     )
-    fieldnames = ["algorithm", "run", "seed", "point_index"]
-    fieldnames.extend(f"f{index + 1}" for index in range(objective_count))
-
-    with open(filename, "w", newline="", encoding="utf-8-sig") as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-        for results in grouped_results.values():
-            for run_index, item in enumerate(results, start=1):
-                for point_index, objective in enumerate(item["archive_objectives"], start=1):
-                    row = {
-                        "algorithm": item["algorithm"],
-                        "run": run_index,
-                        "seed": item["seed"],
-                        "point_index": point_index,
-                    }
-                    for objective_index, value in enumerate(objective, start=1):
-                        row[f"f{objective_index}"] = value
-                    writer.writerow(row)
+    rows = []
+    for results in grouped_results.values():
+        for run_index, item in enumerate(results, start=1):
+            for point_index, objective in enumerate(item["archive_objectives"], start=1):
+                row = {
+                    "algorithm": item["algorithm"],
+                    "run": run_index,
+                    "seed": item["seed"],
+                    "point_index": point_index,
+                }
+                for objective_index in range(objective_count):
+                    row[f"f{objective_index + 1}"] = (
+                        objective[objective_index] if objective_index < len(objective) else ""
+                    )
+                rows.append(row)
+    save_rows_to_csv(filename, rows)
 
 
 def plot_pareto_scatter(grouped_results, benchmark, filename):
@@ -388,36 +322,17 @@ def save_plots(grouped_results, benchmark):
 
 
 def get_enabled_benchmarks():
-    benchmarks = []
-    for suite_name in ENABLED_SUITES:
-        if suite_name not in BENCHMARK_SUITES:
-            valid_names = ", ".join(BENCHMARK_SUITES)
-            raise ValueError(f"未知测试集: {suite_name}，可选测试集: {valid_names}")
-        benchmarks.extend(BENCHMARK_SUITES[suite_name])
-
-    if ENABLED_FUNCTION_IDS:
-        enabled_ids = set(ENABLED_FUNCTION_IDS)
-        benchmarks = [item for item in benchmarks if item["id"] in enabled_ids]
-
-    if not benchmarks:
-        raise ValueError("没有选中任何测试函数，请检查 ENABLED_SUITES 或 ENABLED_FUNCTION_IDS")
-
-    return benchmarks
+    return select_enabled_items(
+        ENABLED_SUITES,
+        BENCHMARK_SUITES,
+        ENABLED_FUNCTION_IDS,
+        suite_label="benchmark suite",
+        empty_message="没有选中任何测试函数，请检查 ENABLED_SUITES 或 ENABLED_FUNCTION_IDS",
+    )
 
 
 def get_enabled_algorithms():
-    if not ENABLED_ALGORITHMS:
-        return ALGORITHMS
-
-    enabled_names = set(ENABLED_ALGORITHMS)
-    algorithms = [algorithm for algorithm in ALGORITHMS if algorithm["name"] in enabled_names]
-    missing_names = enabled_names - {algorithm["name"] for algorithm in ALGORITHMS}
-    if missing_names:
-        valid_names = ", ".join(algorithm["name"] for algorithm in ALGORITHMS)
-        raise ValueError(f"未知算法: {', '.join(sorted(missing_names))}，可选算法: {valid_names}")
-    if not algorithms:
-        raise ValueError("没有选中任何算法，请检查 ENABLED_ALGORITHMS")
-    return algorithms
+    return select_named_items(ALGORITHMS, ENABLED_ALGORITHMS, item_label="algorithm")
 
 
 def print_run_configuration(benchmarks, algorithms):
@@ -439,13 +354,6 @@ def print_run_configuration(benchmarks, algorithms):
         f"limit={COMMON_PARAMS['limit']}, "
         f"archive_size={COMMON_PARAMS['archive_size']}"
     )
-
-
-def print_progress(current, total, prefix="", width=32):
-    ratio = current / total
-    completed = int(width * ratio)
-    bar = "#" * completed + "-" * (width - completed)
-    print(f"\r{prefix} [{bar}] {current}/{total} {ratio * 100:6.2f}%", end="", flush=True)
 
 
 def run_benchmark(benchmark, algorithms):

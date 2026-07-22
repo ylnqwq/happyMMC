@@ -7,6 +7,8 @@ from multi_objective.mo_utils import (
     evaluate_objectives,
     greedy_select_multi,
     population_scores,
+    reinitialize_source,
+    select_partner,
     update_archive,
     validate_bounds,
 )
@@ -36,9 +38,7 @@ def create_neighbor(food_sources, index, bounds, archive_solutions=None, archive
     neighbor = food_sources[index].copy()
 
     parameter_index = np.random.randint(dimension)
-    partner_index = np.random.randint(food_number)
-    while partner_index == index:
-        partner_index = np.random.randint(food_number)
+    partner_index = select_partner(food_number, index)
 
     phi = np.random.uniform(-1.0, 1.0)
     neighbor[parameter_index] = (
@@ -100,19 +100,13 @@ def onlooker_bee_phase(
         greedy_select_multi(food_sources, objectives, trials, selected_index, candidate, candidate_objective)
 
 
-def reinitialize_food_source(food_sources, objectives, trials, index, lower_bounds, upper_bounds, objective_function):
-    food_sources[index] = np.random.uniform(lower_bounds, upper_bounds)
-    objectives[index] = objective_function(food_sources[index])
-    trials[index] = 0
-
-
 def scout_bee_phase(food_sources, objectives, trials, bounds, objective_function, limit):
     bounds = np.asarray(bounds, dtype=float)
     lower_bounds = bounds[:, 0]
     upper_bounds = bounds[:, 1]
     for i in range(len(food_sources)):
         if trials[i] >= limit:
-            reinitialize_food_source(food_sources, objectives, trials, i, lower_bounds, upper_bounds, objective_function)
+            reinitialize_source(food_sources, objectives, trials, i, lower_bounds, upper_bounds, objective_function)
 
 
 def elite_enhancement_phase(
@@ -161,7 +155,7 @@ def worst_elimination_phase(food_sources, objectives, trials, bounds, objective_
     upper_bounds = bounds[:, 1]
 
     for index in worst_indexes:
-        reinitialize_food_source(food_sources, objectives, trials, index, lower_bounds, upper_bounds, objective_function)
+        reinitialize_source(food_sources, objectives, trials, index, lower_bounds, upper_bounds, objective_function)
 
 
 def get_current_elimination_rate(initial_rate, iteration, max_iter, initial_best_value=None, current_best_value=None):

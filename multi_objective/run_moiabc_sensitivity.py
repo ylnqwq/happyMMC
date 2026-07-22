@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import csv
-import os
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -17,34 +15,14 @@ if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
 from multi_objective.algorithms import MOIABC
-from multi_objective.run_multi_objective_comparison import calculate_hypervolume
-from multi_objective.mo_utils import spacing_metric
+from multi_objective.mo_utils import calculate_hypervolume, spacing_metric
 from multi_objective.multiobjective_benchmarks import CEC2009_UF_BENCHMARKS, CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
-
-
-def env_int(name, default):
-    value = os.environ.get(name)
-    return default if value is None or value == "" else int(value)
-
-
-def env_csv(name, default=None):
-    value = os.environ.get(name)
-    if value is None or value.strip() == "":
-        return [] if default is None else default
-    return [item.strip() for item in value.split(",") if item.strip()]
-
-
-def env_output_dir(name, default):
-    value = os.environ.get(name)
-    if value is None or value.strip() == "":
-        return default
-    path = Path(value)
-    return path if path.is_absolute() else MODULE_DIR / path
+from experiment_utils import env_csv, env_int, env_output_dir, format_float, print_progress, save_rows_to_csv, select_enabled_items
 
 
 RUN_TIMES = env_int("MOIABC_SENSITIVITY_RUN_TIMES", 30)
 SEED_BASE = env_int("MOIABC_SENSITIVITY_SEED_BASE", 20260719)
-OUTPUT_DIR = env_output_dir("MOIABC_SENSITIVITY_OUTPUT_DIR", MODULE_DIR / "moiabc_sensitivity_results")
+OUTPUT_DIR = env_output_dir("MOIABC_SENSITIVITY_OUTPUT_DIR", MODULE_DIR / "moiabc_sensitivity_results", MODULE_DIR)
 PARALLEL_WORKERS = env_int("MOIABC_SENSITIVITY_WORKERS", 4)
 
 ENABLED_SUITES = env_csv("MOIABC_SENSITIVITY_SUITES", ["ZDT", "CEC2009_UF", "CEC2020_MMO"])
@@ -74,32 +52,19 @@ RANK_METRICS = [
 
 
 def get_enabled_benchmarks():
-    benchmarks = []
-    for suite_name in ENABLED_SUITES:
-        if suite_name not in BENCHMARK_SUITES:
-            valid_names = ", ".join(BENCHMARK_SUITES)
-            raise ValueError(f"Unknown suite: {suite_name}. Valid suites: {valid_names}")
-        benchmarks.extend(BENCHMARK_SUITES[suite_name])
-
-    if ENABLED_FUNCTION_IDS:
-        enabled_ids = set(ENABLED_FUNCTION_IDS)
-        benchmarks = [item for item in benchmarks if item["id"] in enabled_ids]
-
-    if not benchmarks:
-        raise ValueError("No benchmark selected. Check ENABLED_SUITES or ENABLED_FUNCTION_IDS.")
-    return benchmarks
+    return select_enabled_items(
+        ENABLED_SUITES,
+        BENCHMARK_SUITES,
+        ENABLED_FUNCTION_IDS,
+        suite_label="benchmark suite",
+        empty_message="No benchmark selected. Check ENABLED_SUITES or ENABLED_FUNCTION_IDS.",
+    )
 
 
 def parameter_grid():
     for elite_rate in ELITE_RATES:
         for elimination_rate in ELIMINATION_RATES:
             yield elite_rate, elimination_rate
-
-
-def format_float(value, precision=16):
-    if value == "":
-        return ""
-    return f"{float(value):.{precision}f}"
 
 
 def run_once(benchmark, seed, elite_rate, elimination_rate):
@@ -160,15 +125,6 @@ def print_configuration(benchmarks):
     print(f"Parameter combinations: {total_combinations}")
     print(f"Total MOIABC runs: {total_runs}")
     print(f"Parallel workers: {PARALLEL_WORKERS}")
-
-
-def save_rows(filename, rows):
-    if not rows:
-        return
-    with open(filename, "w", newline="", encoding="utf-8-sig") as file:
-        writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
 
 
 def summarize_results(rows):
@@ -274,13 +230,6 @@ def rank_parameter_sets(summary_rows):
     return sorted(rank_rows, key=lambda item: (item["average_rank"], -item["best_count"]))
 
 
-def print_progress(done, total, prefix="", width=32):
-    ratio = done / total
-    completed = int(width * ratio)
-    bar = "#" * completed + "-" * (width - completed)
-    print(f"\r{prefix} [{bar}] {done}/{total} {ratio * 100:6.2f}%", end="", flush=True)
-
-
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     benchmarks = get_enabled_benchmarks()
@@ -332,9 +281,9 @@ def main():
     summary_rows = summarize_results(rows)
     rank_rows = rank_parameter_sets(summary_rows)
 
-    save_rows(OUTPUT_DIR / "moiabc_sensitivity_detail_results.csv", detail_rows)
-    save_rows(OUTPUT_DIR / "moiabc_sensitivity_summary_by_function.csv", summary_rows)
-    save_rows(OUTPUT_DIR / "moiabc_sensitivity_average_rank.csv", rank_rows)
+    save_rows_to_csv(OUTPUT_DIR / "moiabc_sensitivity_detail_results.csv", detail_rows)
+    save_rows_to_csv(OUTPUT_DIR / "moiabc_sensitivity_summary_by_function.csv", summary_rows)
+    save_rows_to_csv(OUTPUT_DIR / "moiabc_sensitivity_average_rank.csv", rank_rows)
 
     print("\n" + "=" * 80)
     print("MOIABC parameter sensitivity finished")

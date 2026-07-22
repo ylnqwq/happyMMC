@@ -85,6 +85,7 @@ IABC/
 |   |-- run_single_objective_comparison.py              # 单目标实验入口
 |   |-- run_iabc_sensitivity.py    # IABC 参数敏感性分析
 |   |-- single_objective_benchmarks.py   # CEC2022 单目标测试函数
+|   |-- so_utils.py                      # 单目标算法公共工具
 |   |-- embedded_cec_data.py             # 10 维 CEC 平移、旋转和打乱数据
 |   |-- statistical_tests.py             # Wilcoxon 与平均排名统计
 |   |-- algorithms/
@@ -99,7 +100,7 @@ IABC/
 |-- multi_objective/
 |   |-- run_multi_objective_comparison.py          # 多目标实验入口
 |   |-- multiobjective_benchmarks.py     # ZDT / CEC2009 UF / CEC2020 MMO 多目标测试函数
-|   |-- mo_utils.py                      # Pareto 排序、拥挤距离、档案维护等工具
+|   |-- mo_utils.py                      # Pareto 排序、超体积、档案维护等工具
 |   |-- statistical_tests.py             # Wilcoxon 与平均排名统计
 |   |-- algorithms/
 |   |   |-- MOABC.py
@@ -110,6 +111,7 @@ IABC/
 |   |   `-- Zhao_IMOABC.py
 |   `-- mo_comparison_results/           # 多目标实验输出目录
 |
+|-- experiment_utils.py                  # 实验脚本公共工具
 |-- .gitignore
 `-- README.md
 ```

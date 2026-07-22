@@ -2,14 +2,7 @@
 
 import numpy as np
 
-
-def _validate_bounds(bounds):
-    bounds = np.asarray(bounds, dtype=float)
-    if bounds.ndim != 2 or bounds.shape[1] != 2:
-        raise ValueError("bounds must be shaped like [(lower, upper), ...].")
-    if np.any(bounds[:, 0] >= bounds[:, 1]):
-        raise ValueError("each lower bound must be smaller than the upper bound.")
-    return bounds
+from single_objective.so_utils import validate_bounds
 
 
 def _evaluate_population(population, objective_function):
@@ -64,7 +57,7 @@ def genetic_algorithm(
         used_seed = int(seed)
     np.random.seed(used_seed)
 
-    bounds = _validate_bounds(bounds)
+    bounds = validate_bounds(bounds)
     dimension = len(bounds)
     lower_bounds = bounds[:, 0]
     upper_bounds = bounds[:, 1]

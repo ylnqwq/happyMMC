@@ -2,47 +2,24 @@
 
 import numpy as np
 
-
-def calculate_fitness(values):
-    values = np.asarray(values, dtype=float)
-    fitness = np.empty_like(values, dtype=float)
-
-    non_negative = values >= 0
-    fitness[non_negative] = 1.0 / (1.0 + values[non_negative])
-    fitness[~non_negative] = 1.0 + np.abs(values[~non_negative])
-    return fitness
-
-
-def _validate_bounds(bounds):
-    bounds = np.asarray(bounds, dtype=float)
-    if bounds.ndim != 2 or bounds.shape[1] != 2:
-        raise ValueError("bounds must be shaped like [(lower, upper), ...].")
-    if np.any(bounds[:, 0] >= bounds[:, 1]):
-        raise ValueError("each lower bound must be smaller than the upper bound.")
-    return bounds
+from single_objective.so_utils import (
+    calculate_fitness,
+    initialize_random_sources,
+    reinitialize_source,
+    select_partner,
+    validate_bounds,
+)
 
 
 def initialize_food_sources(food_number, bounds, objective_function):
-    lower_bounds = bounds[:, 0]
-    upper_bounds = bounds[:, 1]
-    food_sources = np.random.uniform(lower_bounds, upper_bounds, size=(food_number, len(bounds)))
-    values = np.array([objective_function(source) for source in food_sources], dtype=float)
-    trials = np.zeros(food_number, dtype=int)
-    return food_sources, values, trials
-
-
-def _select_partner(food_number, index):
-    partner_index = np.random.randint(food_number)
-    while partner_index == index:
-        partner_index = np.random.randint(food_number)
-    return partner_index
+    return initialize_random_sources(food_number, bounds, objective_function)
 
 
 def create_ndbp_neighbor(food_sources, values, index, best_solution, worst_solution, bounds, iteration, max_iter):
     food_number, dimension = food_sources.shape
     neighbor = food_sources[index].copy()
     parameter_index = np.random.randint(dimension)
-    partner_index = _select_partner(food_number, index)
+    partner_index = select_partner(food_number, index)
 
     progress = (iteration + 1) / max(1, max_iter)
     phi = np.random.uniform(-1.0, 1.0)
@@ -152,9 +129,7 @@ def scout_bee_phase(food_sources, values, trials, bounds, objective_function, li
     upper_bounds = bounds[:, 1]
     for index in range(len(food_sources)):
         if trials[index] >= limit:
-            food_sources[index] = np.random.uniform(lower_bounds, upper_bounds)
-            values[index] = objective_function(food_sources[index])
-            trials[index] = 0
+            reinitialize_source(food_sources, values, trials, index, lower_bounds, upper_bounds, objective_function)
 
 
 def ndbp_abc(
@@ -172,7 +147,7 @@ def ndbp_abc(
         used_seed = int(seed)
     np.random.seed(used_seed)
 
-    bounds = _validate_bounds(bounds)
+    bounds = validate_bounds(bounds)
     food_sources, values, trials = initialize_food_sources(bee, bounds, objective_function)
 
     best_solution, best_value, worst_solution = update_best_worst(food_sources, values)

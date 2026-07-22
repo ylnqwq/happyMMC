@@ -8,6 +8,7 @@ from multi_objective.mo_utils import (
     evaluate_objectives,
     greedy_select_multi,
     population_scores,
+    select_partner,
     update_archive,
     validate_bounds,
 )
@@ -30,13 +31,6 @@ def initialize_food_sources(food_number, bounds, objective_function):
     return food_sources, objectives, trials
 
 
-def _select_partner(food_number, index):
-    partner_index = np.random.randint(food_number)
-    while partner_index == index:
-        partner_index = np.random.randint(food_number)
-    return partner_index
-
-
 def _select_archive_guide(archive_solutions, archive_objectives):
     if archive_solutions is None or len(archive_solutions) == 0:
         return None
@@ -51,7 +45,7 @@ def create_neighbor(food_sources, index, bounds, archive_solutions, archive_obje
     food_number, dimension = food_sources.shape
     neighbor = food_sources[index].copy()
     parameter_index = np.random.randint(dimension)
-    partner_index = _select_partner(food_number, index)
+    partner_index = select_partner(food_number, index)
 
     progress = (iteration + 1) / max(1, max_iter)
     phi = np.random.uniform(-1.0, 1.0) * (1.0 - 0.5 * progress)

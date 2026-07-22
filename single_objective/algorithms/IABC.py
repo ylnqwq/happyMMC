@@ -2,16 +2,7 @@
 
 import numpy as np
 
-
-def calculate_fitness(values):
-    """将最小化目标函数值转换为适应度，目标值越小适应度越大。"""
-    values = np.asarray(values, dtype=float)
-    fitness = np.empty_like(values, dtype=float)
-
-    non_negative = values >= 0
-    fitness[non_negative] = 1.0 / (1.0 + values[non_negative])
-    fitness[~non_negative] = 1.0 + np.abs(values[~non_negative])
-    return fitness
+from single_objective.so_utils import calculate_fitness, reinitialize_source, select_partner, validate_bounds
 
 
 def calculate_relative_fitness(values):
@@ -57,9 +48,7 @@ def create_neighbor(food_sources, index, bounds):
     neighbor = food_sources[index].copy()
 
     parameter_index = np.random.randint(dimension)
-    partner_index = np.random.randint(food_number)
-    while partner_index == index:
-        partner_index = np.random.randint(food_number)
+    partner_index = select_partner(food_number, index)
 
     phi = np.random.uniform(-1.0, 1.0)
     neighbor[parameter_index] = (
@@ -116,13 +105,6 @@ def onlooker_bee_phase(
         greedy_select(food_sources, values, trials, selected_index, candidate, candidate_value)
 
 
-def reinitialize_food_source(food_sources, values, trials, index, lower_bounds, upper_bounds, objective_function):
-    """随机重新初始化指定蜜源。"""
-    food_sources[index] = np.random.uniform(lower_bounds, upper_bounds)
-    values[index] = objective_function(food_sources[index])
-    trials[index] = 0
-
-
 def scout_bee_phase(food_sources, values, trials, bounds, objective_function, limit):
     """侦察蜂阶段，超过试探上限的蜜源会被随机重新初始化。"""
     bounds = np.asarray(bounds, dtype=float)
@@ -130,7 +112,7 @@ def scout_bee_phase(food_sources, values, trials, bounds, objective_function, li
     upper_bounds = bounds[:, 1]
     for i in range(len(food_sources)):
         if trials[i] >= limit:
-            reinitialize_food_source(food_sources, values, trials, i, lower_bounds, upper_bounds, objective_function)
+            reinitialize_source(food_sources, values, trials, i, lower_bounds, upper_bounds, objective_function)
 
 
 def elite_enhancement_phase(
@@ -181,7 +163,7 @@ def worst_elimination_phase(
     upper_bounds = bounds[:, 1]
 
     for index in worst_indexes:
-        reinitialize_food_source(food_sources, values, trials, index, lower_bounds, upper_bounds, objective_function)
+        reinitialize_source(food_sources, values, trials, index, lower_bounds, upper_bounds, objective_function)
 
 
 def get_current_elimination_rate(initial_rate, iteration, max_iter):
@@ -212,12 +194,7 @@ def iabc(
         used_seed = int(seed)
     np.random.seed(used_seed)
 
-    bounds = np.asarray(bounds, dtype=float)
-    if bounds.ndim != 2 or bounds.shape[1] != 2:
-        raise ValueError("bounds 必须是形如 [(lower, upper), ...] 的二维数组或列表")
-    if np.any(bounds[:, 0] >= bounds[:, 1]):
-        raise ValueError("每个变量的下界必须小于上界")
-
+    bounds = validate_bounds(bounds)
     food_sources, values, trials = initialize_food_sources(bee, bounds, objective_function)
 
     best_index = np.argmin(values)

@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import csv
-import os
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -19,55 +17,35 @@ if str(MODULE_DIR) not in sys.path:
 from multi_objective.algorithms import MOABC, MOIABC
 from multi_objective.mo_utils import (
     best_sum_history_value,
+    calculate_hypervolume,
     spacing_metric,
     update_archive,
     validate_bounds,
 )
 from multi_objective.multiobjective_benchmarks import CEC2009_UF_BENCHMARKS, CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
-from multi_objective.run_multi_objective_comparison import calculate_hypervolume
 from multi_objective.statistical_tests import (
     print_average_rank_overview,
     print_wilcoxon_overview,
     save_average_rank_results,
     save_wilcoxon_results,
 )
-
-
-def env_int(name, default):
-    value = os.environ.get(name)
-    return default if value is None or value == "" else int(value)
-
-
-def env_float(name, default):
-    value = os.environ.get(name)
-    return default if value is None or value == "" else float(value)
-
-
-def env_bool(name, default):
-    value = os.environ.get(name)
-    if value is None or value == "":
-        return default
-    return value not in {"0", "false", "False", "no", "No"}
-
-
-def env_csv(name, default=None):
-    value = os.environ.get(name)
-    if value is None or value.strip() == "":
-        return [] if default is None else default
-    return [item.strip() for item in value.split(",") if item.strip()]
-
-
-def env_output_dir(name, default):
-    value = os.environ.get(name)
-    if value is None or value.strip() == "":
-        return default
-    path = Path(value)
-    return path if path.is_absolute() else MODULE_DIR / path
+from experiment_utils import (
+    env_bool,
+    env_csv,
+    env_float,
+    env_int,
+    env_output_dir,
+    format_float,
+    print_progress,
+    save_rows_to_csv,
+    select_enabled_items,
+    select_named_items,
+)
 
 
 RUN_TIMES = env_int("MOIABC_ABLATION_RUN_TIMES", 30)
 SEED_BASE = env_int("MOIABC_ABLATION_SEED_BASE", 20260718)
-OUTPUT_DIR = env_output_dir("MOIABC_ABLATION_OUTPUT_DIR", MODULE_DIR / "moiabc_ablation_results")
+OUTPUT_DIR = env_output_dir("MOIABC_ABLATION_OUTPUT_DIR", MODULE_DIR / "moiabc_ablation_results", MODULE_DIR)
 PARALLEL_WORKERS = env_int("MOIABC_ABLATION_WORKERS", 4)
 SAVE_ARCHIVE_POINTS = env_bool("MOIABC_ABLATION_SAVE_ARCHIVE_POINTS", False)
 
@@ -159,43 +137,20 @@ STATISTICAL_TEST_METRICS = [
 
 
 def get_enabled_benchmarks():
-    benchmarks = []
-    for suite_name in ENABLED_SUITES:
-        if suite_name not in BENCHMARK_SUITES:
-            valid_names = ", ".join(BENCHMARK_SUITES)
-            raise ValueError(f"Unknown suite: {suite_name}. Valid suites: {valid_names}")
-        benchmarks.extend(BENCHMARK_SUITES[suite_name])
-
-    if ENABLED_FUNCTION_IDS:
-        enabled_ids = set(ENABLED_FUNCTION_IDS)
-        benchmarks = [item for item in benchmarks if item["id"] in enabled_ids]
-
-    if not benchmarks:
-        raise ValueError("No benchmark selected. Check MOIABC_ABLATION_SUITES or MOIABC_ABLATION_FUNCTION_IDS.")
-    return benchmarks
+    return select_enabled_items(
+        ENABLED_SUITES,
+        BENCHMARK_SUITES,
+        ENABLED_FUNCTION_IDS,
+        suite_label="benchmark suite",
+        empty_message="No benchmark selected. Check MOIABC_ABLATION_SUITES or MOIABC_ABLATION_FUNCTION_IDS.",
+    )
 
 
 def get_enabled_variants():
-    if not ENABLED_VARIANTS:
-        return VARIANTS
-
-    enabled_names = set(ENABLED_VARIANTS)
-    variants = [variant for variant in VARIANTS if variant["name"] in enabled_names]
-    missing_names = enabled_names - {variant["name"] for variant in VARIANTS}
-    if missing_names:
-        valid_names = ", ".join(variant["name"] for variant in VARIANTS)
-        raise ValueError(f"Unknown variant: {', '.join(sorted(missing_names))}. Valid variants: {valid_names}")
-    if not variants:
-        raise ValueError("No variant selected. Check MOIABC_ABLATION_VARIANTS.")
+    variants = select_named_items(VARIANTS, ENABLED_VARIANTS, item_label="variant")
     if "MOIABC" not in [variant["name"] for variant in variants]:
         raise ValueError("MOIABC must be enabled as the reference variant.")
     return variants
-
-
-def format_float(value, precision=16):
-    if value == "":
-        return ""
-    return f"{float(value):.{precision}f}"
 
 
 def run_moiabc_variant(objective_function, bounds, seed, variant, params):
@@ -362,15 +317,6 @@ def calculate_statistics(results):
     }
 
 
-def save_rows_to_csv(filename, rows):
-    if not rows:
-        return
-    with open(filename, "w", newline="", encoding="utf-8-sig") as file:
-        writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
-
-
 def save_detail_results(filename, all_results):
     rows = []
     for grouped_results in all_results.values():
@@ -455,13 +401,6 @@ def print_statistics(benchmark, grouped_results):
         print(f"mean_hypervolume: {stats['mean_hypervolume']:.16e}")
         print(f"std_hypervolume: {stats['std_hypervolume']:.16e}")
         print(f"mean_time: {stats['mean_time']:.6f}s")
-
-
-def print_progress(current, total, prefix="", width=32):
-    ratio = current / total
-    completed = int(width * ratio)
-    bar = "#" * completed + "-" * (width - completed)
-    print(f"\r{prefix} [{bar}] {current}/{total} {ratio * 100:6.2f}%", end="", flush=True)
 
 
 def run_benchmark(benchmark, variants, seeds):

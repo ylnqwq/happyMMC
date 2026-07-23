@@ -29,6 +29,7 @@ from experiment_utils import print_progress, save_rows_to_csv, select_enabled_it
 
 
 RUN_TIMES = 30
+SEED_BASE = 20260723
 OUTPUT_DIR = MODULE_DIR / "mo_comparison_results_baselines_no_moiabc"
 PARALLEL_WORKERS = 4
 SAVE_ARCHIVE_POINTS = True
@@ -354,6 +355,7 @@ def print_run_configuration(benchmarks, algorithms):
     print(f"算法数量: {len(algorithms)}")
     print(f"算法: {', '.join(algorithm['name'] for algorithm in algorithms)}")
     print(f"独立运行次数: {RUN_TIMES}")
+    print(f"随机种子基准: {SEED_BASE}")
     print(f"并行进程数: {PARALLEL_WORKERS}")
     print(f"保存档案点: {'是' if SAVE_ARCHIVE_POINTS else '否'}")
     print(f"保存图像: {'是' if SAVE_PLOTS else '否'}")
@@ -367,7 +369,7 @@ def print_run_configuration(benchmarks, algorithms):
 
 
 def run_benchmark(benchmark, algorithms):
-    seeds = np.random.SeedSequence().generate_state(RUN_TIMES)
+    seeds = np.random.SeedSequence(SEED_BASE).generate_state(RUN_TIMES)
     grouped_results = {algorithm["name"]: [] for algorithm in algorithms}
     tasks = []
 

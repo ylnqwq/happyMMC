@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import os
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -29,11 +28,11 @@ from multi_objective.statistical_tests import (
 from experiment_utils import print_progress, save_rows_to_csv, select_enabled_items, select_named_items
 
 
-RUN_TIMES = 10
-OUTPUT_DIR = Path(__file__).resolve().parent / "mo_comparison_results"
+RUN_TIMES = 30
+OUTPUT_DIR = MODULE_DIR / "mo_comparison_results_baselines_no_moiabc"
 PARALLEL_WORKERS = 4
-SAVE_ARCHIVE_POINTS = os.environ.get("MO_SAVE_ARCHIVE_POINTS", "1") != "0"
-SAVE_PLOTS = os.environ.get("MO_SAVE_PLOTS", "1") != "0"
+SAVE_ARCHIVE_POINTS = True
+SAVE_PLOTS = True
 
 # 全局测试开关：
 # 1. ENABLED_SUITES 控制要跑哪些测试集，可选 "ZDT"、"CEC2009_UF"、"CEC2020_MMO"。
@@ -42,7 +41,7 @@ SAVE_PLOTS = os.environ.get("MO_SAVE_PLOTS", "1") != "0"
 ENABLED_SUITES = ["ZDT", "CEC2009_UF", "CEC2020_MMO"]
 ENABLED_FUNCTION_IDS = []
 # 可选算法 MOABC, NSGA-II, MOPSO, Zhou-IMOABC, Zhao-IMOABC, MOIABC
-ENABLED_ALGORITHMS = ["MOABC","MOIABC","NSGA-II","MOPSO","Zhou-IMOABC","Zhao-IMOABC"]
+ENABLED_ALGORITHMS = ["MOABC", "NSGA-II", "MOPSO", "Zhou-IMOABC", "Zhao-IMOABC"]
 
 BENCHMARK_SUITES = {
     "ZDT": ZDT_BENCHMARKS,

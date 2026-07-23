@@ -16,7 +16,7 @@ if str(ROOT_DIR) not in sys.path:
 if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
-from multi_objective.algorithms import MOABC, MOIABC, MOPSO, NSGA2, Zhao_IMOABC, Zhou_IMOABC
+from multi_objective.algorithms import MOABC, MODE, MOIABC, MOPSO, NSGA2, Zhao_IMOABC, Zhou_IMOABC
 from multi_objective.mo_utils import calculate_hypervolume, non_dominated_mask, spacing_metric
 from multi_objective.multiobjective_benchmarks import CEC2009_UF_BENCHMARKS, CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
 from multi_objective.statistical_tests import (
@@ -40,8 +40,8 @@ SAVE_PLOTS = True
 #    例：只跑 ZDT1、UF1 和 MMF1 -> ENABLED_FUNCTION_IDS = ["ZDT1", "UF1", "MMF1"]
 ENABLED_SUITES = ["ZDT", "CEC2009_UF", "CEC2020_MMO"]
 ENABLED_FUNCTION_IDS = []
-# 可选算法 MOABC, NSGA-II, MOPSO, Zhou-IMOABC, Zhao-IMOABC, MOIABC
-ENABLED_ALGORITHMS = ["MOABC", "NSGA-II", "MOPSO", "Zhou-IMOABC", "Zhao-IMOABC"]
+# 可选算法 MOABC, MODE, NSGA-II, MOPSO, Zhou-IMOABC, Zhao-IMOABC, MOIABC
+ENABLED_ALGORITHMS = ["MOABC", "MODE", "NSGA-II", "MOPSO", "Zhou-IMOABC", "Zhao-IMOABC"]
 
 BENCHMARK_SUITES = {
     "ZDT": ZDT_BENCHMARKS,
@@ -67,6 +67,17 @@ ALGORITHMS = [
         "name": "MOABC",
         "runner": MOABC.multi_objective_abc,
         "params": COMMON_PARAMS,
+    },
+    {
+        "name": "MODE",
+        "runner": MODE.mode,
+        "params": {
+            "population_size": COMMON_PARAMS["bee"],
+            "max_iter": COMMON_PARAMS["max_iter"],
+            "archive_size": COMMON_PARAMS["archive_size"],
+            "mutation_factor": 0.5,
+            "crossover_rate": 0.9,
+        },
     },
     {
         "name": "NSGA-II",

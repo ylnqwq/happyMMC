@@ -59,8 +59,8 @@ COMMON_PARAMS = {
 
 MOIABC_BEST_PARAMS = {
     "tournament_size": 3,
-    "elite_rate": 0.15,
-    "elimination_rate": 0.20,
+    "elite_rate": 0.25,
+    "elimination_rate": 0.25,
 }
 
 ALGORITHMS = [

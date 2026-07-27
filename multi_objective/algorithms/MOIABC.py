@@ -115,7 +115,7 @@ def elite_enhancement_phase(
     trials,
     bounds,
     objective_function,
-    elite_rate=0.15,
+    elite_rate=0.25,
     archive_solutions=None,
     archive_guidance_rate=0.3,
 ):
@@ -139,7 +139,7 @@ def elite_enhancement_phase(
         )
 
 
-def worst_elimination_phase(food_sources, objectives, trials, bounds, objective_function, elimination_rate=0.2):
+def worst_elimination_phase(food_sources, objectives, trials, bounds, objective_function, elimination_rate=0.25):
     food_number = len(food_sources)
     elimination_number = int(np.ceil(food_number * elimination_rate))
     if elimination_number <= 0:
@@ -181,8 +181,8 @@ def multi_objective_iabc(
     max_iter=800,
     limit=160,
     tournament_size=3,
-    elite_rate=0.15,
-    elimination_rate=0.2,
+    elite_rate=0.25,
+    elimination_rate=0.25,
     archive_size=100,
     archive_guidance_rate=0.3,
     seed=None,

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 
 import argparse
 import csv
@@ -11,7 +11,7 @@ from matplotlib import font_manager
 import numpy as np
 
 
-DEFAULT_INPUT_DIR = Path(__file__).resolve().parent / "moiabc_sensitivity_results"
+DEFAULT_INPUT_DIR = Path(__file__).resolve().parent / "moiabc_elite_elimination_sensitivity_results"
 DEFAULT_ABLATION_INPUT_DIR = Path(__file__).resolve().parent / "moiabc_ablation_results"
 
 ABLATION_ALGORITHM_ORDER = [
@@ -19,7 +19,6 @@ ABLATION_ALGORITHM_ORDER = [
     "MOIABC-no-good-point-init",
     "MOIABC-no-tournament-selection",
     "MOIABC-no-elite-enhancement",
-    "MOIABC-no-archive-guidance",
     "MOIABC-no-worst-elimination",
     "MOABC-equivalent",
 ]
@@ -29,7 +28,6 @@ ABLATION_ALGORITHM_LABELS = {
     "MOIABC-no-good-point-init": "MOIABC-NG",
     "MOIABC-no-tournament-selection": "MOIABC-NT",
     "MOIABC-no-elite-enhancement": "MOIABC-NE",
-    "MOIABC-no-archive-guidance": "MOIABC-NA",
     "MOIABC-no-worst-elimination": "MOIABC-NW",
     "MOABC-equivalent": "MOABC",
 }
@@ -98,7 +96,7 @@ def parse_args():
         "--input-dir",
         type=Path,
         default=DEFAULT_INPUT_DIR,
-        help="Directory containing moiabc_sensitivity_*.csv files.",
+        help="Directory containing MOIABC sensitivity CSV files.",
     )
     parser.add_argument(
         "--metric",
@@ -136,12 +134,12 @@ def parse_args():
     parser.add_argument(
         "--friedman",
         action="store_true",
-        help="For --mode ablation, draw Friedman average-rank bar chart(s) instead of tables.",
+        help="Draw rank bar chart(s) instead of tables.",
     )
     parser.add_argument(
         "--sort-by",
         choices=["average_rank", "best_count"],
-        default="average_rank",
+        default="best_count",
         help="Ranking key for top-k parameter combinations.",
     )
     return parser.parse_args()
@@ -205,17 +203,21 @@ def benchmark_sort_key(benchmark_id):
     if zdt_match:
         return 0, int(zdt_match.group(1)), "", ""
 
+    uf_match = re.fullmatch(r"UF(\d+)", benchmark_id)
+    if uf_match:
+        return 1, int(uf_match.group(1)), "", ""
+
     mmf_match = re.fullmatch(r"MMF(\d+)(.*)", benchmark_id)
     if mmf_match:
-        return 1, int(mmf_match.group(1)), mmf_match.group(2), ""
+        return 2, int(mmf_match.group(1)), mmf_match.group(2), ""
 
     cec_match = re.search(r"CEC(\d+)_F(\d+)", benchmark_id)
     if cec_match:
-        return 2, int(cec_match.group(1)), int(cec_match.group(2)), ""
+        return 3, int(cec_match.group(1)), int(cec_match.group(2)), ""
 
     function_match = re.search(r"F(\d+)", benchmark_id)
     if function_match:
-        return 3, int(function_match.group(1)), "", benchmark_id
+        return 4, int(function_match.group(1)), "", benchmark_id
 
     return 9, 0, "", benchmark_id
 
@@ -521,7 +523,7 @@ def rank_combinations_for_metric(summary_rows, metric, sort_by="average_rank"):
     return sorted(rows, key=lambda item: (item["average_rank"], -item["best_count"], item["average_metric"]))
 
 
-def rank_combinations_across_metrics(summary_rows, metrics):
+def rank_combinations_across_metrics(summary_rows, metrics, sort_by="average_rank"):
     rank_sums = {}
     best_counts = {}
     benchmark_metric_count = 0
@@ -557,12 +559,14 @@ def rank_combinations_across_metrics(summary_rows, metrics):
         }
         for (elite_rate, elimination_rate), rank_sum in rank_sums.items()
     ]
+    if sort_by == "best_count":
+        return sorted(rows, key=lambda item: (-item["best_count"], item["average_rank"]))
     return sorted(rows, key=lambda item: (item["average_rank"], -item["best_count"]))
 
 
 def draw_top_bar_chart(summary_rows, metric, top_k, output_path, show_title=True, sort_by="average_rank"):
     spec = METRIC_SPECS[metric]
-    top_rows = rank_combinations_for_metric(summary_rows, metric)[:top_k]
+    top_rows = rank_combinations_for_metric(summary_rows, metric, sort_by=sort_by)[:top_k]
     if not top_rows:
         raise ValueError(f"No rows available for metric {metric!r}.")
 
@@ -585,7 +589,10 @@ def draw_top_bar_chart(summary_rows, metric, top_k, output_path, show_title=True
     fig, ax = plt.subplots(figsize=(5.2, 3.7), dpi=300)
     bars = ax.bar(labels, values, color=colors[: len(top_rows)], edgecolor="#606060", linewidth=0.7)
 
-    y_label = "最优次数" if sort_by == "best_count" else "平均排名"
+    if sort_by == "best_count":
+        y_label = "最优次数"
+    else:
+        y_label = "平均排名"
     ax.set_ylabel(y_label, fontsize=10.5, family=font_family)
     ax.set_xlabel("参数组合", fontsize=10.5, family=font_family)
     if show_title:
@@ -927,6 +934,7 @@ def write_friedman_rank_csv(rows, output_path):
                 "average_rank",
                 "best_count",
                 "benchmark_count",
+                "average_metric",
                 "friedman_statistic",
                 "p_value",
             ],
@@ -935,34 +943,43 @@ def write_friedman_rank_csv(rows, output_path):
         writer.writerows(rows)
 
 
-def draw_friedman_rank_bar(rows, output_path, show_title=True):
+def draw_friedman_rank_bar(
+    rows,
+    output_path,
+    show_title=False,
+    x_label="算法变量",
+    value_key="average_rank",
+    y_label="排名",
+    value_format="{:.2f}",
+):
     colors = ["#f1b183", "#7fa6d9", "#a7dce0", "#4e8fc7", "#b7cee8", "#9fc490", "#d7b9d5"]
     labels = [row["label"] for row in rows]
-    values = [row["average_rank"] for row in rows]
+    values = [row[value_key] for row in rows]
     metric_label = METRIC_SPECS[rows[0]["metric"]]["label"]
 
     font_family = ["Times New Roman", "SimSun"]
     fig, ax = plt.subplots(figsize=(7.2, 4.2), dpi=300)
     bars = ax.bar(labels, values, color=colors[: len(rows)], edgecolor="#606060", linewidth=0.7)
-    ax.set_ylabel("排名", fontsize=11, family=font_family)
-    ax.set_xlabel("算法变体", fontsize=11, family=font_family)
+    ax.set_ylabel(y_label, fontsize=11, family=font_family)
+    ax.set_xlabel(x_label, fontsize=11, family=font_family)
     if show_title:
         p_value = rows[0]["p_value"]
         p_text = f", p={p_value:.3g}" if np.isfinite(p_value) else ""
-        ax.set_title(f"{metric_label} 的 Friedman 平均排名{p_text}", fontsize=12, fontweight="bold", family=font_family)
+        title_value = "平均排名" if value_key == "average_rank" else "最优次数"
+        ax.set_title(f"{metric_label} Friedman {title_value}{p_text}", fontsize=12, fontweight="bold", family=font_family)
     ax.set_ylim(0, max(values) * 1.22)
     ax.grid(axis="y", linestyle="--", linewidth=0.6, alpha=0.35)
     ax.set_axisbelow(True)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.tick_params(axis="x", labelsize=8.5, rotation=20)
+    ax.tick_params(axis="x", labelsize=8.5, rotation=0)
     ax.tick_params(axis="y", labelsize=9.2)
 
     for bar, value in zip(bars, values):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + max(values) * 0.025,
-            f"{value:.2f}",
+            value_format.format(value),
             ha="center",
             va="bottom",
             fontsize=9.0,
@@ -972,6 +989,66 @@ def draw_friedman_rank_bar(rows, output_path, show_title=True):
     fig.tight_layout()
     fig.savefig(output_path, bbox_inches="tight", pad_inches=0.06)
     plt.close(fig)
+
+
+def sensitivity_rank_rows(summary_rows, metric, sort_by="best_count"):
+    ranked_rows = rank_combinations_for_metric(summary_rows, metric, sort_by=sort_by)
+    rows = []
+    for row in ranked_rows:
+        rows.append(
+            {
+                "metric": metric,
+                "algorithm": f"{row['elite_rate']}|{row['elimination_rate']}",
+                "label": f"e={format_rate(row['elite_rate'])}, d={format_rate(row['elimination_rate'])}",
+                "average_rank": row["average_rank"],
+                "best_count": row["best_count"],
+                "benchmark_count": row["benchmark_count"],
+                "average_metric": row["average_metric"],
+                "friedman_statistic": float("nan"),
+                "p_value": float("nan"),
+            }
+        )
+    return rows
+
+
+def draw_sensitivity_rank_outputs(args):
+    input_dir = args.input_dir
+    output_dir = args.output_dir or input_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    summary_path = find_csv(
+        input_dir,
+        [
+            "moiabc_sensitivity_summary_by_function.csv",
+            "sensitivity_summary_by_function.csv",
+        ],
+    )
+    summary_rows = exclude_duplicate_rows(normalize_rows(read_csv_rows(summary_path)))
+    metrics = available_metrics(summary_rows)
+    if args.metric:
+        if args.metric not in metrics:
+            available = ", ".join(metrics) or "none"
+            raise ValueError(f"Metric {args.metric!r} is not available. Available metrics: {available}")
+        metrics = [args.metric]
+
+    outputs = []
+    all_rank_rows = []
+    for metric in metrics:
+        suffix = METRIC_SPECS[metric]["suffix"]
+        rank_rows = sensitivity_rank_rows(summary_rows, metric, sort_by="average_rank")[: args.top_k]
+        output_png = output_dir / f"moiabc_sensitivity_friedman_{suffix}_rank.png"
+        output_csv = output_png.with_suffix(".csv")
+        draw_friedman_rank_bar(rank_rows, output_png, show_title=False, x_label="参数组合")
+        write_friedman_rank_csv(rank_rows, output_csv)
+        outputs.extend([output_png, output_csv])
+        all_rank_rows.extend(rank_rows)
+
+    output_csv = output_dir / "moiabc_sensitivity_friedman_all_ranks.csv"
+    write_friedman_rank_csv(all_rank_rows, output_csv)
+    outputs.append(output_csv)
+
+    for output in outputs:
+        print(output)
 
 
 def read_filtered_wilcoxon_rows(input_dir):
@@ -1045,7 +1122,7 @@ def draw_ablation_effect_table(rows, output_path, show_title=True):
             variants.append(row["variant"])
     index = {(row["metric"], row["variant"]): row for row in rows}
 
-    column_headers = ["指标"] + [ABLATION_ALGORITHM_LABELS.get(variant, variant) for variant in variants]
+    column_headers = ["鎸囨爣"] + [ABLATION_ALGORITHM_LABELS.get(variant, variant) for variant in variants]
     column_widths = [1.35] + [2.15] * len(variants)
     total_width = sum(column_widths)
     row_count = len(metrics)
@@ -1142,6 +1219,9 @@ def draw_ablation_outputs(args):
 
     outputs = []
     if args.friedman:
+        if args.mode == "sensitivity":
+            draw_sensitivity_rank_outputs(args)
+            return
         all_rank_rows = []
         for metric in metrics:
             suffix = METRIC_SPECS[metric]["suffix"]
@@ -1252,7 +1332,7 @@ def draw_table_paper(summary_rows, benchmark_ids, combinations, metric, output_p
     x_positions = np.cumsum([0] + column_widths)
 
     if show_title:
-        title = f"表  MOIABC 不同参数组合的敏感度分析结果（{spec['label']}）"
+        title = f"表X MOIABC 不同参数组合的敏感性分析结果（{spec['label']}）"
         ax.text(
             total_width / 2,
             row_count + 1.48,
@@ -1364,6 +1444,9 @@ def main():
     if args.mode == "ablation":
         draw_ablation_outputs(args)
         return
+    if args.friedman:
+        draw_sensitivity_rank_outputs(args)
+        return
 
     input_dir = args.input_dir
     output_dir = args.output_dir or input_dir
@@ -1399,17 +1482,18 @@ def main():
 
     benchmark_ids = sorted({row["benchmark_id"] for row in summary_rows}, key=benchmark_sort_key)
     if len(metrics) == 1:
-        ranked_rows = rank_combinations_for_metric(summary_rows, metrics[0])[: args.top_k]
+        ranked_rows = rank_combinations_for_metric(
+            summary_rows,
+            metrics[0],
+            sort_by=args.sort_by,
+        )[: args.top_k]
         combinations = [(row["elite_rate"], row["elimination_rate"]) for row in ranked_rows]
-        if args.sort_by == "best_count":
-            combinations, _ = sort_combinations_by_table_count(
-                summary_rows,
-                benchmark_ids,
-                combinations,
-                metrics[0],
-            )
     else:
-        ranked_rows = rank_combinations_across_metrics(summary_rows, metrics)[: args.top_k]
+        ranked_rows = rank_combinations_across_metrics(
+            summary_rows,
+            metrics,
+            sort_by=args.sort_by,
+        )[: args.top_k]
         if ranked_rows:
             combinations = [(row["elite_rate"], row["elimination_rate"]) for row in ranked_rows]
         else:
@@ -1434,19 +1518,37 @@ def main():
 
     outputs = []
     for metric in metrics:
+        if len(metrics) > 1 and args.sort_by == "best_count":
+            metric_ranked_rows = rank_combinations_for_metric(
+                summary_rows,
+                metric,
+                sort_by=args.sort_by,
+            )[: args.top_k]
+            metric_combinations = [
+                (row["elite_rate"], row["elimination_rate"]) for row in metric_ranked_rows
+            ]
+        else:
+            metric_combinations = combinations
+        if args.sort_by == "best_count":
+            metric_combinations, _ = sort_combinations_by_table_count(
+                summary_rows,
+                benchmark_ids,
+                metric_combinations,
+                metric,
+            )
         suffix = METRIC_SPECS[metric]["suffix"]
-        output_png = output_dir / f"moiabc_sensitivity_top{len(combinations)}_{suffix}_table.png"
+        output_png = output_dir / f"moiabc_sensitivity_top{len(metric_combinations)}_{suffix}_table.png"
         output_csv = output_png.with_suffix(".csv")
         draw_table_paper(
             summary_rows,
             benchmark_ids,
-            combinations,
+            metric_combinations,
             metric,
             output_png,
             show_title=not args.no_title,
             show_note=not args.no_note,
         )
-        write_table_csv_paper(summary_rows, benchmark_ids, combinations, metric, output_csv)
+        write_table_csv_paper(summary_rows, benchmark_ids, metric_combinations, metric, output_csv)
         outputs.extend([output_png, output_csv])
 
     for output in outputs:
@@ -1455,3 +1557,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

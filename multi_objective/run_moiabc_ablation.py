@@ -44,7 +44,7 @@ from experiment_utils import (
 
 
 RUN_TIMES = env_int("MOIABC_ABLATION_RUN_TIMES", 30)
-SEED_BASE = env_int("MOIABC_ABLATION_SEED_BASE", 20260718)
+SEED_BASE = env_int("MOIABC_ABLATION_SEED_BASE", 20260723)
 OUTPUT_DIR = env_output_dir("MOIABC_ABLATION_OUTPUT_DIR", MODULE_DIR / "moiabc_ablation_results", MODULE_DIR)
 PARALLEL_WORKERS = env_int("MOIABC_ABLATION_WORKERS", 4)
 SAVE_ARCHIVE_POINTS = env_bool("MOIABC_ABLATION_SAVE_ARCHIVE_POINTS", False)
@@ -65,8 +65,8 @@ COMMON_PARAMS = {
     "limit": env_int("MOIABC_ABLATION_LIMIT", 160),
     "archive_size": env_int("MOIABC_ABLATION_ARCHIVE_SIZE", 100),
     "tournament_size": env_int("MOIABC_ABLATION_TOURNAMENT_SIZE", 3),
-    "elite_rate": env_float("MOIABC_ABLATION_ELITE_RATE", 0.15),
-    "elimination_rate": env_float("MOIABC_ABLATION_ELIMINATION_RATE", 0.20),
+    "elite_rate": env_float("MOIABC_ABLATION_ELITE_RATE", 0.25),
+    "elimination_rate": env_float("MOIABC_ABLATION_ELIMINATION_RATE", 0.25),
     "archive_guidance_rate": env_float("MOIABC_ABLATION_ARCHIVE_GUIDANCE_RATE", 0.30),
 }
 
@@ -100,14 +100,6 @@ VARIANTS = [
         "use_good_point_init": True,
         "use_tournament_selection": True,
         "use_elite_enhancement": False,
-        "use_archive_guidance": False,
-        "use_worst_elimination": True,
-    },
-    {
-        "name": "MOIABC-no-archive-guidance",
-        "use_good_point_init": True,
-        "use_tournament_selection": True,
-        "use_elite_enhancement": True,
         "use_archive_guidance": False,
         "use_worst_elimination": True,
     },

@@ -5,6 +5,10 @@
 /single_objective/sensitivity_results*.zip
 /multi_objective/moiabc_sensitivity_results/
 /multi_objective/moiabc_sensitivity_results*.zip
+/multi_objective/moiabc_elite_elimination_sensitivity_results/
+/multi_objective/moiabc_elite_elimination_sensitivity_results*.zip
+/multi_objective/moiabc_archive_rate_sensitivity_results/
+/multi_objective/moiabc_archive_rate_sensitivity_results*.zip
 /multi_objective/moiabc_ablation_results/
 /multi_objective/moiabc_ablation_*_results/
 /multi_objective/mo_comparison_results/
@@ -16,6 +20,9 @@
 # Python cache
 __pycache__/
 *.py[cod]
+
+# IDE local state
+/.idea/claudeCodeTabState.xml
 
 # Local secrets and environment files
 .env

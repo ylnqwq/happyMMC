@@ -6,6 +6,8 @@ import shutil
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401

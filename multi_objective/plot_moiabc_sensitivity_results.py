@@ -6,6 +6,8 @@ import math
 import re
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
 import numpy as np

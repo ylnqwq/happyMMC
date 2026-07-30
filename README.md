@@ -6,7 +6,8 @@
 
 - 单目标算法对比：`single_objective/run_single_objective_comparison.py`
 - 单目标 IABC 参数敏感性分析：`single_objective/run_iabc_sensitivity.py`
-- 多目标算法对比：`multi_objective/run_multi_objective_comparison.py`
+- 多目标基础算法对比：`multi_objective/run_multi_objective_standard_comparison.py`
+- 多目标改进算法对比：`multi_objective/run_multi_objective_improved_comparison.py`
 - 多目标 MOIABC 参数敏感性分析：`multi_objective/run_moiabc_elite_elimination_sensitivity.py`
 - 多目标 MOIABC archive_rate 敏感性分析：`multi_objective/run_moiabc_archive_rate_sensitivity.py`
 - 多目标 MOIABC 消融实验：`multi_objective/run_moiabc_ablation.py`
@@ -46,6 +47,8 @@ IABC/
 |       `-- NDBP_ABC.py
 `-- multi_objective/
     |-- run_multi_objective_comparison.py
+    |-- run_multi_objective_standard_comparison.py
+    |-- run_multi_objective_improved_comparison.py
     |-- run_moiabc_elite_elimination_sensitivity.py
     |-- run_moiabc_archive_rate_sensitivity.py
     |-- run_moiabc_ablation.py
@@ -175,7 +178,7 @@ python single_objective\plot_single_objective_results.py --mode sensitivity --in
 多目标实验位于 `multi_objective/`，当前包含 7 个算法：
 
 - `MOABC`：基本多目标人工蜂群算法
-- `MODE`：多目标差分进化算法
+- `MO-DE`：多目标差分进化算法
 - `NSGA-II`：非支配排序遗传算法
 - `MOPSO`：多目标粒子群算法
 - `Zhou-IMOABC`：Zhou 风格改进多目标人工蜂群算法
@@ -203,14 +206,25 @@ python single_objective\plot_single_objective_results.py --mode sensitivity --in
 ```python
 RUN_TIMES = 30
 SEED_BASE = 20260723
-OUTPUT_DIR = MODULE_DIR / "mo_comparison_results_baselines_no_moiabc"
 PARALLEL_WORKERS = 4
 SAVE_ARCHIVE_POINTS = True
 SAVE_PLOTS = True
 
 ENABLED_SUITES = ["ZDT", "CEC2009_UF", "CEC2020_MMO"]
 ENABLED_FUNCTION_IDS = []
-ENABLED_ALGORITHMS = ["MOABC", "MODE", "NSGA-II", "MOPSO", "Zhou-IMOABC", "Zhao-IMOABC"]
+
+EXPERIMENT_GROUPS = [
+    {
+        "name": "standard_algorithms",
+        "output_dir": MODULE_DIR / "mo_comparison_results_standard_algorithms",
+        "algorithms": ["MO-DE", "NSGA-II", "MOPSO", "MOABC"],
+    },
+    {
+        "name": "improved_algorithms",
+        "output_dir": MODULE_DIR / "mo_comparison_results_improved_algorithms",
+        "algorithms": ["Zhou-IMOABC", "Zhao-IMOABC", "MOIABC"],
+    },
+]
 
 COMMON_PARAMS = {
     "bee": 80,
@@ -223,21 +237,22 @@ MOIABC_BEST_PARAMS = {
     "tournament_size": 3,
     "elite_rate": 0.25,
     "elimination_rate": 0.25,
+    "archive_guidance_rate": 0.40,
 }
 ```
-
-当前默认对比配置不启用 `MOIABC`，主要用于 baseline 算法对比；如需加入 `MOIABC`，将 `ENABLED_ALGORITHMS` 改为包含 `"MOIABC"`。
 
 ### 运行
 
 ```bash
-python multi_objective\run_multi_objective_comparison.py
+python multi_objective\run_multi_objective_standard_comparison.py
+python multi_objective\run_multi_objective_improved_comparison.py
 ```
 
 输出目录：
 
 ```text
-multi_objective/mo_comparison_results_baselines_no_moiabc/
+multi_objective/mo_comparison_results_standard_algorithms/
+multi_objective/mo_comparison_results_improved_algorithms/
 ```
 
 主要输出：

@@ -2,6 +2,7 @@
 
 import sys
 import time
+import shutil
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
@@ -25,12 +26,11 @@ from multi_objective.statistical_tests import (
     save_average_rank_results,
     save_wilcoxon_results,
 )
-from experiment_utils import print_progress, save_rows_to_csv, select_enabled_items, select_named_items
+from experiment_utils import print_progress, save_rows_to_csv, select_enabled_items
 
 
 RUN_TIMES = 30
 SEED_BASE = 20260723
-OUTPUT_DIR = MODULE_DIR / "mo_comparison_results_baselines_no_moiabc"
 PARALLEL_WORKERS = 4
 SAVE_ARCHIVE_POINTS = True
 SAVE_PLOTS = True
@@ -41,8 +41,25 @@ SAVE_PLOTS = True
 #    例：只跑 ZDT1、UF1 和 MMF1 -> ENABLED_FUNCTION_IDS = ["ZDT1", "UF1", "MMF1"]
 ENABLED_SUITES = ["ZDT", "CEC2009_UF", "CEC2020_MMO"]
 ENABLED_FUNCTION_IDS = []
-# 可选算法 MOABC, MODE, NSGA-II, MOPSO, Zhou-IMOABC, Zhao-IMOABC, MOIABC
-ENABLED_ALGORITHMS = ["MOABC", "MODE", "NSGA-II", "MOPSO", "Zhou-IMOABC", "Zhao-IMOABC"]
+
+STANDARD_EXPERIMENT_GROUP = {
+    "name": "standard_algorithms",
+    "output_dir": MODULE_DIR / "mo_comparison_results_standard_algorithms",
+    "algorithms": ["MO-DE", "NSGA-II", "MOPSO", "MOABC"],
+}
+IMPROVED_EXPERIMENT_GROUP = {
+    "name": "improved_algorithms",
+    "output_dir": MODULE_DIR / "mo_comparison_results_improved_algorithms",
+    "algorithms": ["Zhou-IMOABC", "Zhao-IMOABC", "MOIABC"],
+}
+EXPERIMENT_GROUPS = [
+    STANDARD_EXPERIMENT_GROUP,
+    IMPROVED_EXPERIMENT_GROUP,
+]
+LEGACY_OUTPUT_DIRS = [
+    MODULE_DIR / "mo_comparison_results",
+    MODULE_DIR / "mo_comparison_results_baselines_no_moiabc",
+]
 
 BENCHMARK_SUITES = {
     "ZDT": ZDT_BENCHMARKS,
@@ -71,7 +88,7 @@ ALGORITHMS = [
         "params": COMMON_PARAMS,
     },
     {
-        "name": "MODE",
+        "name": "MO-DE",
         "runner": MODE.mode,
         "params": {
             "population_size": COMMON_PARAMS["bee"],
@@ -327,10 +344,10 @@ def plot_average_history(grouped_results, benchmark, filename):
     plt.close()
 
 
-def save_plots(grouped_results, benchmark):
+def save_plots(grouped_results, benchmark, output_dir):
     benchmark_id = benchmark["id"].lower()
-    plot_pareto_scatter(grouped_results, benchmark, OUTPUT_DIR / f"{benchmark_id}_pareto_scatter.png")
-    plot_average_history(grouped_results, benchmark, OUTPUT_DIR / f"{benchmark_id}_average_history.png")
+    plot_pareto_scatter(grouped_results, benchmark, output_dir / f"{benchmark_id}_pareto_scatter.png")
+    plot_average_history(grouped_results, benchmark, output_dir / f"{benchmark_id}_average_history.png")
 
 
 def get_enabled_benchmarks():
@@ -343,13 +360,20 @@ def get_enabled_benchmarks():
     )
 
 
-def get_enabled_algorithms():
-    return select_named_items(ALGORITHMS, ENABLED_ALGORITHMS, item_label="algorithm")
+def get_enabled_algorithms(algorithm_names):
+    by_name = {algorithm["name"]: algorithm for algorithm in ALGORITHMS}
+    missing_names = [name for name in algorithm_names if name not in by_name]
+    if missing_names:
+        valid_names = ", ".join(by_name)
+        raise ValueError(f"Unknown algorithm: {', '.join(missing_names)}. Valid algorithms: {valid_names}")
+    return [by_name[name] for name in algorithm_names]
 
 
-def print_run_configuration(benchmarks, algorithms):
+def print_run_configuration(group, benchmarks, algorithms):
     print("\n" + "=" * 80)
     print("多目标实验运行配置")
+    print(f"实验组: {group['name']}")
+    print(f"输出目录: {group['output_dir'].resolve()}")
     print(f"测试集: {', '.join(ENABLED_SUITES)}")
     print(f"测试函数数量: {len(benchmarks)}")
     print(f"测试函数: {', '.join(benchmark['id'] for benchmark in benchmarks)}")
@@ -369,7 +393,7 @@ def print_run_configuration(benchmarks, algorithms):
     )
 
 
-def run_benchmark(benchmark, algorithms):
+def run_benchmark(benchmark, algorithms, output_dir):
     seeds = np.random.SeedSequence(SEED_BASE).generate_state(RUN_TIMES)
     grouped_results = {algorithm["name"]: [] for algorithm in algorithms}
     tasks = []
@@ -405,24 +429,43 @@ def run_benchmark(benchmark, algorithms):
         results.sort(key=lambda item: item["run_index"])
 
     print_statistics(benchmark, grouped_results)
-    save_results_to_csv(OUTPUT_DIR / f"{benchmark['id'].lower()}_results.csv", grouped_results)
+    save_results_to_csv(output_dir / f"{benchmark['id'].lower()}_results.csv", grouped_results)
     if SAVE_ARCHIVE_POINTS:
-        save_archive_points(OUTPUT_DIR / f"{benchmark['id'].lower()}_archive_points.csv", grouped_results)
+        save_archive_points(output_dir / f"{benchmark['id'].lower()}_archive_points.csv", grouped_results)
     if SAVE_PLOTS:
-        save_plots(grouped_results, benchmark)
+        save_plots(grouped_results, benchmark, output_dir)
     return grouped_results
 
 
-def main():
-    OUTPUT_DIR.mkdir(exist_ok=True)
-    benchmarks = get_enabled_benchmarks()
-    algorithms = get_enabled_algorithms()
-    print_run_configuration(benchmarks, algorithms)
+def prepare_output_dir(output_dir):
+    resolved_module_dir = MODULE_DIR.resolve()
+    resolved_output_dir = output_dir.resolve()
+    if resolved_output_dir == resolved_module_dir or resolved_module_dir not in resolved_output_dir.parents:
+        raise ValueError(f"Refuse to clear output directory outside multi_objective: {resolved_output_dir}")
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+
+def clear_legacy_output_dirs():
+    group_dirs = {group["output_dir"].resolve() for group in EXPERIMENT_GROUPS}
+    for output_dir in LEGACY_OUTPUT_DIRS:
+        if output_dir.resolve() in group_dirs or not output_dir.exists():
+            continue
+        prepare_output_dir(output_dir)
+        output_dir.rmdir()
+
+
+def run_experiment_group(group, benchmarks):
+    output_dir = group["output_dir"]
+    prepare_output_dir(output_dir)
+    algorithms = get_enabled_algorithms(group["algorithms"])
+    print_run_configuration(group, benchmarks, algorithms)
 
     all_results = {}
     total_start_time = time.perf_counter()
     for benchmark in benchmarks:
-        all_results[benchmark["id"]] = run_benchmark(benchmark, algorithms)
+        all_results[benchmark["id"]] = run_benchmark(benchmark, algorithms, output_dir)
 
     wilcoxon_rows = []
     enabled_algorithm_names = [algorithm["name"] for algorithm in algorithms]
@@ -430,16 +473,16 @@ def main():
         for base_algorithm in [name for name in enabled_algorithm_names if name != "MOIABC"]:
             wilcoxon_rows.extend(
                 save_wilcoxon_results(
-                    OUTPUT_DIR / f"wilcoxon_{base_algorithm.lower()}_vs_moiabc_results.csv",
+                    output_dir / f"wilcoxon_{base_algorithm.lower()}_vs_moiabc_results.csv",
                     all_results,
                     base_algorithm=base_algorithm,
                     improved_algorithm="MOIABC",
                     metrics=STATISTICAL_TEST_METRICS,
                 )
             )
-    save_rows_to_csv(OUTPUT_DIR / "wilcoxon_test_results.csv", wilcoxon_rows)
+    save_rows_to_csv(output_dir / "wilcoxon_test_results.csv", wilcoxon_rows)
     rank_rows = save_average_rank_results(
-        OUTPUT_DIR / "average_rank_results.csv",
+        output_dir / "average_rank_results.csv",
         all_results,
         algorithms=enabled_algorithm_names,
         metrics=STATISTICAL_TEST_METRICS,
@@ -449,8 +492,20 @@ def main():
 
     total_time = time.perf_counter() - total_start_time
     print("\n" + "=" * 80)
-    print(f"全部多目标测试完成，总耗时: {total_time:.2f} 秒")
-    print(f"结果文件已保存到: {OUTPUT_DIR.resolve()}")
+    print(f"{group['name']} 多目标测试完成，总耗时: {total_time:.2f} 秒")
+    print(f"结果文件已保存到: {output_dir.resolve()}")
+
+
+def run_single_experiment_group(group):
+    benchmarks = get_enabled_benchmarks()
+    run_experiment_group(group, benchmarks)
+
+
+def main():
+    benchmarks = get_enabled_benchmarks()
+    clear_legacy_output_dirs()
+    for group in EXPERIMENT_GROUPS:
+        run_experiment_group(group, benchmarks)
 
 
 if __name__ == "__main__":

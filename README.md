@@ -217,7 +217,7 @@ EXPERIMENT_GROUPS = [
     {
         "name": "standard_algorithms",
         "output_dir": MODULE_DIR / "mo_comparison_results_standard_algorithms",
-        "algorithms": ["MO-DE", "NSGA-II", "MOPSO", "MOABC"],
+        "algorithms": ["MO-DE", "NSGA-II", "MOPSO", "MOABC", "MOIABC"],
     },
     {
         "name": "improved_algorithms",

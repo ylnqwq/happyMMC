@@ -44,6 +44,7 @@ COMMON_PARAMS = {
     "limit": 160,
     "archive_size": 100,
     "tournament_size": 3,
+    "archive_guidance_rate": 0.40,
 }
 
 ELITE_RATES = [0.05, 0.10, 0.15, 0.20, 0.25]

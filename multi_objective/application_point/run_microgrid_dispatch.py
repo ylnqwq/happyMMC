@@ -138,6 +138,7 @@ def main():
         tournament_size=3,
         elite_rate=0.25,
         elimination_rate=0.25,
+        archive_guidance_rate=0.40,
         seed=SEED,
     )
 

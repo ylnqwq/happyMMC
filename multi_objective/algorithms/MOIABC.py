@@ -33,7 +33,7 @@ def initialize_food_sources(food_number, bounds, objective_function):
     return food_sources, objectives, trials
 
 
-def create_neighbor(food_sources, index, bounds, archive_solutions=None, archive_guidance_rate=0.3):
+def create_neighbor(food_sources, index, bounds, archive_solutions=None, archive_guidance_rate=0.4):
     food_number, dimension = food_sources.shape
     neighbor = food_sources[index].copy()
 
@@ -117,7 +117,7 @@ def elite_enhancement_phase(
     objective_function,
     elite_rate=0.25,
     archive_solutions=None,
-    archive_guidance_rate=0.3,
+    archive_guidance_rate=0.4,
 ):
     food_number = len(food_sources)
     elite_number = max(1, int(np.ceil(food_number * elite_rate)))
@@ -184,7 +184,7 @@ def multi_objective_iabc(
     elite_rate=0.25,
     elimination_rate=0.25,
     archive_size=100,
-    archive_guidance_rate=0.3,
+    archive_guidance_rate=0.4,
     seed=None,
 ):
     if seed is None:

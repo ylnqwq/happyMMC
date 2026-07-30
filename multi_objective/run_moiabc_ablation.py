@@ -67,7 +67,7 @@ COMMON_PARAMS = {
     "tournament_size": env_int("MOIABC_ABLATION_TOURNAMENT_SIZE", 3),
     "elite_rate": env_float("MOIABC_ABLATION_ELITE_RATE", 0.25),
     "elimination_rate": env_float("MOIABC_ABLATION_ELIMINATION_RATE", 0.25),
-    "archive_guidance_rate": env_float("MOIABC_ABLATION_ARCHIVE_GUIDANCE_RATE", 0.30),
+    "archive_guidance_rate": env_float("MOIABC_ABLATION_ARCHIVE_GUIDANCE_RATE", 0.40),
 }
 
 VARIANTS = [

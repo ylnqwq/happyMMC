@@ -48,7 +48,7 @@ COMMON_PARAMS = {
     "elimination_rate": 0.25,
 }
 
-ARCHIVE_RATES = [0.05,0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50]
+ARCHIVE_RATES = [0.40]
 RANK_METRICS = [
     ("hypervolume", True),
     ("spacing", False),

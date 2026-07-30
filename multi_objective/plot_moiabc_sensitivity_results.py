@@ -169,12 +169,12 @@ def normalize_rows(rows):
     normalized = []
     for row in rows:
         item = dict(row)
-        item["elite_rate"] = to_float(item["elite_rate"])
-        item["elimination_rate"] = to_float(item["elimination_rate"])
+        for key in sensitivity_parameter_columns([row]):
+            item[key] = to_float(item[key])
         for key, value in row.items():
             if key in {"benchmark_id", "function"}:
                 continue
-            if key not in {"elite_rate", "elimination_rate"}:
+            if key not in {"elite_rate", "elimination_rate", "archive_rate"}:
                 try:
                     item[key] = to_float(value)
                 except (TypeError, ValueError):
@@ -233,6 +233,62 @@ def format_rate(value):
     return f"{value:.2f}".rstrip("0").rstrip(".")
 
 
+def sensitivity_parameter_columns(rows):
+    if not rows:
+        return ("elite_rate", "elimination_rate")
+    keys = set(rows[0])
+    if "archive_rate" in keys:
+        return ("archive_rate",)
+    return ("elite_rate", "elimination_rate")
+
+
+def parameter_key(row, columns=None):
+    columns = columns or sensitivity_parameter_columns([row])
+    return tuple(row[column] for column in columns)
+
+
+def parameter_index_key(benchmark_id, key):
+    return (benchmark_id, *key)
+
+
+def parameter_label(key, multiline=False):
+    separator = "\n" if multiline else ", "
+    if len(key) == 1:
+        return f"ar={format_rate(key[0])}"
+    if len(key) == 2:
+        return separator.join([f"e={format_rate(key[0])}", f"d={format_rate(key[1])}"])
+    return separator.join(format_rate(value) for value in key)
+
+
+def parameter_row_fields(key, columns):
+    return {column: value for column, value in zip(columns, key)}
+
+
+def parameter_note(columns, higher_is_better):
+    direction = "越大越优" if higher_is_better else "越小越优"
+    if columns == ("archive_rate",):
+        prefix = "注：ar 表示 archive_rate；"
+    else:
+        prefix = "注：e 表示 elite_rate，d 表示 elimination_rate；"
+    return (
+        prefix
+        + f"数值为相对本行最优均值的差值±标准差（最优为 0，原指标{direction}）；"
+        + "每行加粗表示该测试函数上的最优参数。"
+    )
+
+
+def sensitivity_output_prefix(summary_rows):
+    if sensitivity_parameter_columns(summary_rows) == ("archive_rate",):
+        return "moiabc_archive_rate_sensitivity"
+    return "moiabc_sensitivity"
+
+
+def sensitivity_title_label(summary_rows):
+    if sensitivity_parameter_columns(summary_rows) == ("archive_rate",):
+        return "MOIABC archive_rate 敏感性分析"
+    return "MOIABC 参数敏感性分析"
+
+
 def format_scientific(value):
     if not np.isfinite(value):
         return "nan"
@@ -249,33 +305,35 @@ def relative_to_best(value, best_value, higher_is_better):
 
 
 def rank_key(row):
+    columns = sensitivity_parameter_columns([row])
     return (
         row.get("average_rank", float("inf")),
         -row.get("best_count", 0.0),
-        row["elite_rate"],
-        row["elimination_rate"],
+        *parameter_key(row, columns),
     )
 
 
 def select_combinations(summary_rows, rank_rows, top_k):
+    columns = sensitivity_parameter_columns(summary_rows or rank_rows)
     if rank_rows:
         ranked = sorted(rank_rows, key=rank_key)
-        return [(row["elite_rate"], row["elimination_rate"]) for row in ranked[:top_k]]
+        return [parameter_key(row, columns) for row in ranked[:top_k]]
 
     seen = sorted(
-        {(row["elite_rate"], row["elimination_rate"]) for row in summary_rows},
-        key=lambda item: (item[0], item[1]),
+        {parameter_key(row, columns) for row in summary_rows},
+        key=lambda item: item,
     )
     return seen[:top_k]
 
 
 def write_table_csv(summary_rows, benchmark_ids, combinations, metric, output_path):
     spec = METRIC_SPECS[metric]
+    columns = sensitivity_parameter_columns(summary_rows)
     index = {
-        (row["benchmark_id"], row["elite_rate"], row["elimination_rate"]): row
+        parameter_index_key(row["benchmark_id"], parameter_key(row, columns)): row
         for row in summary_rows
     }
-    headers = [f"e={format_rate(e)},d={format_rate(d)}" for e, d in combinations]
+    headers = [parameter_label(key) for key in combinations]
     with output_path.open("w", encoding="utf-8-sig", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=["benchmark_id", "function"] + headers)
         writer.writeheader()
@@ -288,9 +346,9 @@ def write_table_csv(summary_rows, benchmark_ids, combinations, metric, output_pa
                 spec["mean"],
                 spec["higher_is_better"],
             )
-            for elite_rate, elimination_rate in combinations:
-                header = f"e={format_rate(elite_rate)},d={format_rate(elimination_rate)}"
-                row = index.get((benchmark_id, elite_rate, elimination_rate))
+            for key in combinations:
+                header = parameter_label(key)
+                row = index.get(parameter_index_key(benchmark_id, key))
                 if row is None:
                     output_row[header] = ""
                 else:
@@ -303,12 +361,13 @@ def write_table_csv(summary_rows, benchmark_ids, combinations, metric, output_pa
 
 def draw_table(summary_rows, benchmark_ids, combinations, metric, output_path, show_title=True, show_note=True):
     spec = METRIC_SPECS[metric]
+    columns = sensitivity_parameter_columns(summary_rows)
     index = {
-        (row["benchmark_id"], row["elite_rate"], row["elimination_rate"]): row
+        parameter_index_key(row["benchmark_id"], parameter_key(row, columns)): row
         for row in summary_rows
     }
 
-    column_headers = ["函数"] + [f"e={format_rate(e)}\nd={format_rate(d)}" for e, d in combinations]
+    column_headers = ["函数"] + [parameter_label(key, multiline=True) for key in combinations]
     column_widths = [1.25] + [2.15] * len(combinations)
     total_width = sum(column_widths)
     benchmark_count = len(benchmark_ids)
@@ -326,7 +385,7 @@ def draw_table(summary_rows, benchmark_ids, combinations, metric, output_path, s
     x_positions = np.cumsum([0] + column_widths)
 
     if show_title:
-        title = f"MOIABC 参数敏感性分析结果（{spec['label']}）"
+        title = f"{sensitivity_title_label(summary_rows)}结果（{spec['label']}）"
         ax.text(
             total_width / 2,
             benchmark_count + 1.58,
@@ -378,18 +437,18 @@ def draw_table(summary_rows, benchmark_ids, combinations, metric, output_path, s
         )
 
         values = [
-            index[(benchmark_id, elite_rate, elimination_rate)][mean_key]
-            for elite_rate, elimination_rate in combinations
-            if (benchmark_id, elite_rate, elimination_rate) in index
-            and np.isfinite(index[(benchmark_id, elite_rate, elimination_rate)][mean_key])
+            index[parameter_index_key(benchmark_id, key)][mean_key]
+            for key in combinations
+            if parameter_index_key(benchmark_id, key) in index
+            and np.isfinite(index[parameter_index_key(benchmark_id, key)][mean_key])
         ]
         if values:
             best_value = max(values) if higher_is_better else min(values)
         else:
             best_value = None
 
-        for column_index, (elite_rate, elimination_rate) in enumerate(combinations, start=1):
-            row = index.get((benchmark_id, elite_rate, elimination_rate))
+        for column_index, key in enumerate(combinations, start=1):
+            row = index.get(parameter_index_key(benchmark_id, key))
             if row is None or not np.isfinite(row[mean_key]):
                 text = "-"
                 fontweight = "normal"
@@ -412,28 +471,25 @@ def draw_table(summary_rows, benchmark_ids, combinations, metric, output_path, s
             )
 
     if show_note:
-        direction = "越大越优" if higher_is_better else "越小越优"
-        note = (
-            "注：e 表示 elite_rate，d 表示 elimination_rate；"
-            f"数值为相对本行最优均值的差值±标准差（最优为 0，原指标{direction}）；"
-            "每行加粗表示该测试函数上的最优参数组合。"
-        )
+        note = parameter_note(columns, higher_is_better)
         ax.text(0, -0.42, note, ha="left", va="center", fontsize=8.2, family=font_family)
 
     fig.savefig(output_path, bbox_inches="tight", pad_inches=0.08)
     plt.close(fig)
 
 
-def combination_header(elite_rate, elimination_rate):
-    return f"e={format_rate(elite_rate)}, d={format_rate(elimination_rate)}"
+def combination_header(*rates):
+    if len(rates) == 1 and isinstance(rates[0], tuple):
+        rates = rates[0]
+    return parameter_label(tuple(rates))
 
 
 def get_row_best_value(index, benchmark_id, combinations, mean_key, higher_is_better):
     values = [
-        index[(benchmark_id, elite_rate, elimination_rate)][mean_key]
-        for elite_rate, elimination_rate in combinations
-        if (benchmark_id, elite_rate, elimination_rate) in index
-        and np.isfinite(index[(benchmark_id, elite_rate, elimination_rate)][mean_key])
+        index[parameter_index_key(benchmark_id, key)][mean_key]
+        for key in combinations
+        if parameter_index_key(benchmark_id, key) in index
+        and np.isfinite(index[parameter_index_key(benchmark_id, key)][mean_key])
     ]
     if not values:
         return None
@@ -453,8 +509,8 @@ def count_best_cells(index, benchmark_ids, combinations, mean_key, higher_is_bet
     counts = [0] * len(combinations)
     for benchmark_id in benchmark_ids:
         best_value = get_row_best_value(index, benchmark_id, combinations, mean_key, higher_is_better)
-        for column_index, (elite_rate, elimination_rate) in enumerate(combinations):
-            row = index.get((benchmark_id, elite_rate, elimination_rate))
+        for column_index, key in enumerate(combinations):
+            row = index.get(parameter_index_key(benchmark_id, key))
             if row is None or not np.isfinite(row[mean_key]):
                 continue
             if is_best_cell(row[mean_key], best_value):
@@ -464,8 +520,9 @@ def count_best_cells(index, benchmark_ids, combinations, mean_key, higher_is_bet
 
 def sort_combinations_by_table_count(summary_rows, benchmark_ids, combinations, metric):
     spec = METRIC_SPECS[metric]
+    columns = sensitivity_parameter_columns(summary_rows)
     index = {
-        (row["benchmark_id"], row["elite_rate"], row["elimination_rate"]): row
+        parameter_index_key(row["benchmark_id"], parameter_key(row, columns)): row
         for row in summary_rows
     }
     counts = count_best_cells(
@@ -476,7 +533,7 @@ def sort_combinations_by_table_count(summary_rows, benchmark_ids, combinations, 
         spec["higher_is_better"],
     )
     paired = list(zip(combinations, counts))
-    paired.sort(key=lambda item: (-item[1], item[0][0], item[0][1]))
+    paired.sort(key=lambda item: (-item[1], item[0]))
     return [item[0] for item in paired], [item[1] for item in paired]
 
 
@@ -484,6 +541,7 @@ def rank_combinations_for_metric(summary_rows, metric, sort_by="average_rank"):
     spec = METRIC_SPECS[metric]
     mean_key = spec["mean"]
     higher_is_better = spec["higher_is_better"]
+    columns = sensitivity_parameter_columns(summary_rows)
     by_benchmark = {}
     for row in summary_rows:
         if np.isfinite(row.get(mean_key, float("nan"))):
@@ -495,23 +553,21 @@ def rank_combinations_for_metric(summary_rows, metric, sort_by="average_rank"):
     for rows in by_benchmark.values():
         ordered = sorted(rows, key=lambda item: item[mean_key], reverse=higher_is_better)
         for rank, row in enumerate(ordered, start=1):
-            key = (row["elite_rate"], row["elimination_rate"])
+            key = parameter_key(row, columns)
             rank_sums[key] = rank_sums.get(key, 0.0) + rank
             metric_sums[key] = metric_sums.get(key, 0.0) + row[mean_key]
             best_counts.setdefault(key, 0)
         if ordered:
             best = ordered[0]
-            best_key = (best["elite_rate"], best["elimination_rate"])
+            best_key = parameter_key(best, columns)
             best_counts[best_key] = best_counts.get(best_key, 0) + 1
 
     benchmark_count = len(by_benchmark)
     rows = []
-    for elite_rate, elimination_rate in sorted(rank_sums):
-        key = (elite_rate, elimination_rate)
+    for key in sorted(rank_sums):
         rows.append(
             {
-                "elite_rate": elite_rate,
-                "elimination_rate": elimination_rate,
+                **parameter_row_fields(key, columns),
                 "average_rank": rank_sums[key] / benchmark_count,
                 "best_count": best_counts.get(key, 0),
                 "benchmark_count": benchmark_count,
@@ -524,6 +580,7 @@ def rank_combinations_for_metric(summary_rows, metric, sort_by="average_rank"):
 
 
 def rank_combinations_across_metrics(summary_rows, metrics, sort_by="average_rank"):
+    columns = sensitivity_parameter_columns(summary_rows)
     rank_sums = {}
     best_counts = {}
     benchmark_metric_count = 0
@@ -541,23 +598,22 @@ def rank_combinations_across_metrics(summary_rows, metrics, sort_by="average_ran
             benchmark_metric_count += 1
             ordered = sorted(rows, key=lambda item: item[mean_key], reverse=higher_is_better)
             for rank, row in enumerate(ordered, start=1):
-                key = (row["elite_rate"], row["elimination_rate"])
+                key = parameter_key(row, columns)
                 rank_sums[key] = rank_sums.get(key, 0.0) + rank
                 best_counts.setdefault(key, 0)
             if ordered:
-                best_key = (ordered[0]["elite_rate"], ordered[0]["elimination_rate"])
+                best_key = parameter_key(ordered[0], columns)
                 best_counts[best_key] = best_counts.get(best_key, 0) + 1
 
     if benchmark_metric_count == 0:
         return []
     rows = [
         {
-            "elite_rate": elite_rate,
-            "elimination_rate": elimination_rate,
+            **parameter_row_fields(key, columns),
             "average_rank": rank_sum / benchmark_metric_count,
-            "best_count": best_counts.get((elite_rate, elimination_rate), 0),
+            "best_count": best_counts.get(key, 0),
         }
-        for (elite_rate, elimination_rate), rank_sum in rank_sums.items()
+        for key, rank_sum in rank_sums.items()
     ]
     if sort_by == "best_count":
         return sorted(rows, key=lambda item: (-item["best_count"], item["average_rank"]))
@@ -566,11 +622,12 @@ def rank_combinations_across_metrics(summary_rows, metrics, sort_by="average_ran
 
 def draw_top_bar_chart(summary_rows, metric, top_k, output_path, show_title=True, sort_by="average_rank"):
     spec = METRIC_SPECS[metric]
+    columns = sensitivity_parameter_columns(summary_rows)
     top_rows = rank_combinations_for_metric(summary_rows, metric, sort_by=sort_by)[:top_k]
     if not top_rows:
         raise ValueError(f"No rows available for metric {metric!r}.")
 
-    combinations = [(row["elite_rate"], row["elimination_rate"]) for row in top_rows]
+    combinations = [parameter_key(row, columns) for row in top_rows]
     benchmark_ids = sorted({row["benchmark_id"] for row in summary_rows}, key=benchmark_sort_key)
     if sort_by == "best_count":
         combinations, values = sort_combinations_by_table_count(
@@ -582,7 +639,7 @@ def draw_top_bar_chart(summary_rows, metric, top_k, output_path, show_title=True
     else:
         values = [row["average_rank"] for row in top_rows]
 
-    labels = [f"e={elite_rate:.2f}\nd={elimination_rate:.2f}" for elite_rate, elimination_rate in combinations]
+    labels = [parameter_label(key, multiline=True) for key in combinations]
     colors = ["#f1b183", "#7fa6d9", "#a7dce0", "#4e8fc7", "#b7cee8"]
 
     font_family = "Microsoft YaHei"
@@ -597,7 +654,7 @@ def draw_top_bar_chart(summary_rows, metric, top_k, output_path, show_title=True
     ax.set_xlabel("参数组合", fontsize=10.5, family=font_family)
     if show_title:
         ax.set_title(
-            f"MOIABC 参数敏感性 Top {len(top_rows)}（{spec['label']}）",
+            f"{sensitivity_title_label(summary_rows)} Top {len(top_rows)}（{spec['label']}）",
             fontsize=11.5,
             fontweight="bold",
             family=font_family,
@@ -992,14 +1049,16 @@ def draw_friedman_rank_bar(
 
 
 def sensitivity_rank_rows(summary_rows, metric, sort_by="best_count"):
+    columns = sensitivity_parameter_columns(summary_rows)
     ranked_rows = rank_combinations_for_metric(summary_rows, metric, sort_by=sort_by)
     rows = []
     for row in ranked_rows:
+        key = parameter_key(row, columns)
         rows.append(
             {
                 "metric": metric,
-                "algorithm": f"{row['elite_rate']}|{row['elimination_rate']}",
-                "label": f"e={format_rate(row['elite_rate'])}, d={format_rate(row['elimination_rate'])}",
+                "algorithm": "|".join(format_rate(value) for value in key),
+                "label": parameter_label(key),
                 "average_rank": row["average_rank"],
                 "best_count": row["best_count"],
                 "benchmark_count": row["benchmark_count"],
@@ -1019,11 +1078,13 @@ def draw_sensitivity_rank_outputs(args):
     summary_path = find_csv(
         input_dir,
         [
+            "moiabc_archive_rate_sensitivity_summary_by_function.csv",
             "moiabc_sensitivity_summary_by_function.csv",
             "sensitivity_summary_by_function.csv",
         ],
     )
     summary_rows = exclude_duplicate_rows(normalize_rows(read_csv_rows(summary_path)))
+    prefix = sensitivity_output_prefix(summary_rows)
     metrics = available_metrics(summary_rows)
     if args.metric:
         if args.metric not in metrics:
@@ -1036,14 +1097,15 @@ def draw_sensitivity_rank_outputs(args):
     for metric in metrics:
         suffix = METRIC_SPECS[metric]["suffix"]
         rank_rows = sensitivity_rank_rows(summary_rows, metric, sort_by="average_rank")[: args.top_k]
-        output_png = output_dir / f"moiabc_sensitivity_friedman_{suffix}_rank.png"
+        output_png = output_dir / f"{prefix}_friedman_{suffix}_rank.png"
         output_csv = output_png.with_suffix(".csv")
-        draw_friedman_rank_bar(rank_rows, output_png, show_title=False, x_label="参数组合")
+        x_label = "archive_rate" if sensitivity_parameter_columns(summary_rows) == ("archive_rate",) else "参数组合"
+        draw_friedman_rank_bar(rank_rows, output_png, show_title=False, x_label=x_label)
         write_friedman_rank_csv(rank_rows, output_csv)
         outputs.extend([output_png, output_csv])
         all_rank_rows.extend(rank_rows)
 
-    output_csv = output_dir / "moiabc_sensitivity_friedman_all_ranks.csv"
+    output_csv = output_dir / f"{prefix}_friedman_all_ranks.csv"
     write_friedman_rank_csv(all_rank_rows, output_csv)
     outputs.append(output_csv)
 
@@ -1267,11 +1329,12 @@ def write_table_csv_paper(summary_rows, benchmark_ids, combinations, metric, out
     spec = METRIC_SPECS[metric]
     mean_key = spec["mean"]
     std_key = spec["std"]
+    columns = sensitivity_parameter_columns(summary_rows)
     index = {
-        (row["benchmark_id"], row["elite_rate"], row["elimination_rate"]): row
+        parameter_index_key(row["benchmark_id"], parameter_key(row, columns)): row
         for row in summary_rows
     }
-    headers = [combination_header(e, d) for e, d in combinations]
+    headers = [combination_header(key) for key in combinations]
     with output_path.open("w", encoding="utf-8-sig", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=["benchmark_id", "function"] + headers)
         writer.writeheader()
@@ -1284,9 +1347,9 @@ def write_table_csv_paper(summary_rows, benchmark_ids, combinations, metric, out
                 mean_key,
                 spec["higher_is_better"],
             )
-            for elite_rate, elimination_rate in combinations:
-                header = combination_header(elite_rate, elimination_rate)
-                row = index.get((benchmark_id, elite_rate, elimination_rate))
+            for key in combinations:
+                header = combination_header(key)
+                row = index.get(parameter_index_key(benchmark_id, key))
                 if row is None:
                     output_row[header] = ""
                 else:
@@ -1305,15 +1368,16 @@ def write_table_csv_paper(summary_rows, benchmark_ids, combinations, metric, out
 
 def draw_table_paper(summary_rows, benchmark_ids, combinations, metric, output_path, show_title=True, show_note=True):
     spec = METRIC_SPECS[metric]
+    columns = sensitivity_parameter_columns(summary_rows)
     index = {
-        (row["benchmark_id"], row["elite_rate"], row["elimination_rate"]): row
+        parameter_index_key(row["benchmark_id"], parameter_key(row, columns)): row
         for row in summary_rows
     }
     mean_key = spec["mean"]
     std_key = spec["std"]
     higher_is_better = spec["higher_is_better"]
 
-    column_headers = ["函数"] + [combination_header(e, d) for e, d in combinations]
+    column_headers = ["函数"] + [combination_header(key) for key in combinations]
     column_widths = [1.25] + [2.25] * len(combinations)
     total_width = sum(column_widths)
     benchmark_count = len(benchmark_ids)
@@ -1332,7 +1396,10 @@ def draw_table_paper(summary_rows, benchmark_ids, combinations, metric, output_p
     x_positions = np.cumsum([0] + column_widths)
 
     if show_title:
-        title = f"表X MOIABC 不同参数组合的敏感性分析结果（{spec['label']}）"
+        if columns == ("archive_rate",):
+            title = f"表X MOIABC 不同 archive_rate 的敏感性分析结果（{spec['label']}）"
+        else:
+            title = f"表X MOIABC 不同参数组合的敏感性分析结果（{spec['label']}）"
         ax.text(
             total_width / 2,
             row_count + 1.48,
@@ -1380,8 +1447,8 @@ def draw_table_paper(summary_rows, benchmark_ids, combinations, metric, output_p
         )
 
         best_value = get_row_best_value(index, benchmark_id, combinations, mean_key, higher_is_better)
-        for column_index, (elite_rate, elimination_rate) in enumerate(combinations, start=1):
-            row = index.get((benchmark_id, elite_rate, elimination_rate))
+        for column_index, key in enumerate(combinations, start=1):
+            row = index.get(parameter_index_key(benchmark_id, key))
             if row is None or not np.isfinite(row[mean_key]):
                 text = "-"
                 fontweight = "normal"
@@ -1426,12 +1493,7 @@ def draw_table_paper(summary_rows, benchmark_ids, combinations, metric, output_p
         )
 
     if show_note:
-        direction = "越大越优" if higher_is_better else "越小越优"
-        note = (
-            "注：e 表示 elite_rate，d 表示 elimination_rate；"
-            f"数值为相对本行最优均值的差值±标准差（最优为 0，原指标{direction}）；"
-            "每行加粗表示该测试函数上的最优参数组合。"
-        )
+        note = parameter_note(columns, higher_is_better)
         ax.text(0, -0.42, note, ha="left", va="center", fontsize=8.2, family=font_family)
 
     fig.savefig(output_path, bbox_inches="tight", pad_inches=0.08)
@@ -1455,16 +1517,20 @@ def main():
     summary_path = find_csv(
         input_dir,
         [
+            "moiabc_archive_rate_sensitivity_summary_by_function.csv",
             "moiabc_sensitivity_summary_by_function.csv",
             "sensitivity_summary_by_function.csv",
         ],
     )
     summary_rows = exclude_duplicate_rows(normalize_rows(read_csv_rows(summary_path)))
+    columns = sensitivity_parameter_columns(summary_rows)
+    prefix = sensitivity_output_prefix(summary_rows)
 
     try:
         rank_path = find_csv(
             input_dir,
             [
+                "moiabc_archive_rate_sensitivity_average_rank.csv",
                 "moiabc_sensitivity_average_rank.csv",
                 "sensitivity_average_rank.csv",
             ],
@@ -1487,7 +1553,7 @@ def main():
             metrics[0],
             sort_by=args.sort_by,
         )[: args.top_k]
-        combinations = [(row["elite_rate"], row["elimination_rate"]) for row in ranked_rows]
+        combinations = [parameter_key(row, columns) for row in ranked_rows]
     else:
         ranked_rows = rank_combinations_across_metrics(
             summary_rows,
@@ -1495,7 +1561,7 @@ def main():
             sort_by=args.sort_by,
         )[: args.top_k]
         if ranked_rows:
-            combinations = [(row["elite_rate"], row["elimination_rate"]) for row in ranked_rows]
+            combinations = [parameter_key(row, columns) for row in ranked_rows]
         else:
             combinations = select_combinations(summary_rows, rank_rows, args.top_k)
 
@@ -1504,7 +1570,7 @@ def main():
             raise ValueError("Please pass --metric when using --bar so only one figure is generated.")
         metric = metrics[0]
         suffix = METRIC_SPECS[metric]["suffix"]
-        output_png = output_dir / f"moiabc_sensitivity_top{args.top_k}_{suffix}_bar.png"
+        output_png = output_dir / f"{prefix}_top{args.top_k}_{suffix}_bar.png"
         draw_top_bar_chart(
             summary_rows,
             metric,
@@ -1525,7 +1591,7 @@ def main():
                 sort_by=args.sort_by,
             )[: args.top_k]
             metric_combinations = [
-                (row["elite_rate"], row["elimination_rate"]) for row in metric_ranked_rows
+                parameter_key(row, columns) for row in metric_ranked_rows
             ]
         else:
             metric_combinations = combinations
@@ -1537,7 +1603,7 @@ def main():
                 metric,
             )
         suffix = METRIC_SPECS[metric]["suffix"]
-        output_png = output_dir / f"moiabc_sensitivity_top{len(metric_combinations)}_{suffix}_table.png"
+        output_png = output_dir / f"{prefix}_top{len(metric_combinations)}_{suffix}_table.png"
         output_csv = output_png.with_suffix(".csv")
         draw_table_paper(
             summary_rows,

@@ -1,132 +1,20 @@
-# IABC人工蜂群算法实验项目
+# IABC 人工蜂群算法实验项目
 
-本项目用于比较人工蜂群算法及相关智能优化算法在单目标优化和多目标优化测试函数上的表现。项目包含算法实现、测试函数、批量实验、统计检验、结果导出、图像绘制和 IABC 参数敏感性分析。
+本项目用于对比人工蜂群算法及相关智能优化算法在单目标优化、多目标优化和微电网经济环境调度问题上的表现。代码包含算法实现、基准函数、批量实验、统计检验、结果导出和论文图表绘制脚本。
 
 主要入口：
 
-- 单目标实验：`single_objective/run_single_objective_comparison.py`
-- 多目标实验：`multi_objective/run_multi_objective_comparison.py`
-- IABC 参数敏感性分析：`single_objective/run_iabc_sensitivity.py`
-
-## 当前实验内容
-
-### 单目标优化
-
-单目标部分位于 `single_objective/`，当前包含 6 个算法：
-
-- `ABC`：基本人工蜂群算法
-- `GA`：遗传算法
-- `ACO`：蚁群优化算法
-- `IABC-MSS`：多策略综合改进人工蜂群算法
-- `NDBP-ABC`：非确定性搜索与双向规划改进人工蜂群算法
-- `IABC`：本项目的单目标改进人工蜂群算法
-
-当前默认配置：
-
-- `RUN_TIMES = 1`
-- 维度：10 维
-- 边界：`[-100, 100]`
-- 默认测试集：`CEC2022`
-- 默认算法：全部单目标算法
-- 公共参数：`bee=80, max_iter=800, limit=160`
-- IABC 参数：`tournament_size=3, elite_rate=0.25, elimination_rate=0.15`
-
-当前单目标测试函数：
-
-- `CEC2022`：`CEC2022_F1` 到 `CEC2022_F12`
-
-单目标统计指标：
-
-- `best_value`：目标函数值，越小越好
-- `error`：与理论最优值的误差，越小越好
-- Wilcoxon 配对符号秩检验：默认以 `IABC` 为改进算法，与其他已启用算法比较
-- 平均排名：跨测试函数统计各算法整体排名
-
-### 多目标优化
-
-多目标部分位于 `multi_objective/`，当前包含 6 个算法：
-
-- `MOABC`：基本多目标人工蜂群算法
-- `NSGA-II`：基本非支配排序遗传算法
-- `MOPSO`：基本多目标粒子群算法
-- `Zhou-IMOABC`：Zhou 风格改进多目标人工蜂群算法
-- `Zhao-IMOABC`：Zhao 风格改进多目标人工蜂群算法
-- `MOIABC`：本项目的多目标改进人工蜂群算法
-
-当前默认配置：
-
-- `RUN_TIMES = 10`
-- 默认测试集：`ZDT`、`CEC2009_UF` 和指定 `CEC2020_MMO`
-- 默认算法：`MOABC`, `MOIABC`
-- 公共参数：`bee=80, max_iter=800, limit=160, archive_size=100`
-- MOIABC 参数：`tournament_size=3, elite_rate=0.05, elimination_rate=0.10`
-
-当前多目标测试函数：
-
-- `ZDT`：`ZDT1`, `ZDT2`, `ZDT3`, `ZDT4`, `ZDT6`
-- `CEC2009_UF`：`UF1`, `UF2`, `UF3`, `UF4`, `UF5`, `UF6`, `UF7`, `UF8`, `UF9`, `UF10`
-- `CEC2020_MMO`：`MMF1`, `MMF2`, `MMF4`, `MMF5`, `MMF7`, `MMF8`, `MMF10`, `MMF11`, `MMF12`, `MMF13`
-
-多目标统计指标：
-
-- `hypervolume`：超体积，越大越好
-- `spacing`：间距指标，越小越好
-- `best_sum`：最小目标和，越小越好
-- Wilcoxon 配对符号秩检验：默认以 `MOIABC` 为改进算法，与其他已启用算法比较
-- 平均排名：跨测试函数统计各算法整体排名
-
-多目标结果是一组 Pareto 非支配解，不是单个最优解。
-
-## 项目结构
-
-```text
-IABC/
-|-- single_objective/
-|   |-- run_single_objective_comparison.py              # 单目标实验入口
-|   |-- run_iabc_sensitivity.py    # IABC 参数敏感性分析
-|   |-- single_objective_benchmarks.py   # CEC2022 单目标测试函数
-|   |-- so_utils.py                      # 单目标算法公共工具
-|   |-- embedded_cec_data.py             # 10 维 CEC 平移、旋转和打乱数据
-|   |-- statistical_tests.py             # Wilcoxon 与平均排名统计
-|   |-- algorithms/
-|   |   |-- ABC.py
-|   |   |-- GA.py
-|   |   |-- ACO.py
-|   |   |-- IABC.py
-|   |   |-- IABC_MSS.py
-|   |   `-- NDBP_ABC.py
-|   `-- comparison_results/              # 单目标实验输出目录
-|
-|-- multi_objective/
-|   |-- run_multi_objective_comparison.py          # 多目标实验入口
-|   |-- multiobjective_benchmarks.py     # ZDT / CEC2009 UF / CEC2020 MMO 多目标测试函数
-|   |-- mo_utils.py                      # Pareto 排序、超体积、档案维护等工具
-|   |-- statistical_tests.py             # Wilcoxon 与平均排名统计
-|   |-- algorithms/
-|   |   |-- MOABC.py
-|   |   |-- MOIABC.py
-|   |   |-- MOPSO.py
-|   |   |-- NSGA2.py
-|   |   |-- Zhou_IMOABC.py
-|   |   `-- Zhao_IMOABC.py
-|   `-- mo_comparison_results/           # 多目标实验输出目录
-|
-|-- experiment_utils.py                  # 实验脚本公共工具
-|-- .gitignore
-`-- README.md
-```
+- 单目标算法对比：`single_objective/run_single_objective_comparison.py`
+- 单目标 IABC 参数敏感性分析：`single_objective/run_iabc_sensitivity.py`
+- 多目标算法对比：`multi_objective/run_multi_objective_comparison.py`
+- 多目标 MOIABC 参数敏感性分析：`multi_objective/run_moiabc_elite_elimination_sensitivity.py`
+- 多目标 MOIABC archive_rate 敏感性分析：`multi_objective/run_moiabc_archive_rate_sensitivity.py`
+- 多目标 MOIABC 消融实验：`multi_objective/run_moiabc_ablation.py`
+- 微电网调度应用案例：`multi_objective/application_point/run_microgrid_dispatch.py`
 
 ## 环境依赖
 
 建议使用 Python 3.9 或更高版本。
-
-安装依赖：
-
-```bash
-pip install numpy matplotlib
-```
-
-使用虚拟环境：
 
 ```bash
 python -m venv .venv
@@ -134,70 +22,76 @@ python -m venv .venv
 pip install numpy matplotlib
 ```
 
-项目中的 Wilcoxon 检验为自行实现，不依赖 `scipy`。
+项目中的 Wilcoxon 配对符号秩检验为自行实现，不依赖 `scipy`。
 
-## 运行方法
+## 项目结构
 
-在项目根目录运行单目标实验：
-
-```bash
-python single_objective\run_single_objective_comparison.py
+```text
+IABC/
+|-- experiment_utils.py
+|-- README.md
+|-- single_objective/
+|   |-- run_single_objective_comparison.py
+|   |-- run_iabc_sensitivity.py
+|   |-- plot_single_objective_results.py
+|   |-- single_objective_benchmarks.py
+|   |-- statistical_tests.py
+|   |-- so_utils.py
+|   `-- algorithms/
+|       |-- ABC.py
+|       |-- ACO.py
+|       |-- GA.py
+|       |-- IABC.py
+|       |-- IABC_MSS.py
+|       `-- NDBP_ABC.py
+`-- multi_objective/
+    |-- run_multi_objective_comparison.py
+    |-- run_moiabc_elite_elimination_sensitivity.py
+    |-- run_moiabc_archive_rate_sensitivity.py
+    |-- run_moiabc_ablation.py
+    |-- plot_moiabc_sensitivity_results.py
+    |-- multiobjective_benchmarks.py
+    |-- statistical_tests.py
+    |-- mo_utils.py
+    |-- algorithms/
+    |   |-- MOABC.py
+    |   |-- MODE.py
+    |   |-- MOIABC.py
+    |   |-- MOPSO.py
+    |   |-- NSGA2.py
+    |   |-- Zhou_IMOABC.py
+    |   `-- Zhao_IMOABC.py
+    `-- application_point/
+        |-- microgrid_dispatch_model.py
+        |-- run_microgrid_dispatch.py
+        `-- results/
 ```
 
-Windows PowerShell 4-core server command:
+## 单目标优化实验
 
-```powershell
-$env:SO_SAVE_PLOTS="0"
-python single_objective\run_single_objective_comparison.py
-```
+### 算法
 
-在项目根目录运行多目标实验：
+单目标实验位于 `single_objective/`，当前包含 6 个算法：
 
-```bash
-python multi_objective\run_multi_objective_comparison.py
-```
+- `ABC`：基本人工蜂群算法
+- `GA`：遗传算法
+- `ACO`：蚁群优化算法
+- `IABC-MSS`：多策略综合改进人工蜂群算法
+- `NDBP-ABC`：非确定性搜索与双向规划改进人工蜂群算法
+- `IABC`：本项目单目标改进人工蜂群算法
 
-在多核服务器上运行多目标实验时，可以开启并行并关闭图像和档案点导出以减少运行时间和磁盘 I/O：
+### 测试函数
 
-```bash
-set MO_SAVE_PLOTS=0
-set MO_SAVE_ARCHIVE_POINTS=0
-python multi_objective\run_multi_objective_comparison.py
-```
+当前单目标测试集为 `CEC2022`，包含 `CEC2022_F1` 至 `CEC2022_F12`。默认维度为 10 维，边界为 `[-100, 100]`，并使用项目内置的 10 维平移、旋转和打乱数据。
 
-Linux 服务器可使用：
+### 默认配置
 
-```bash
-MO_SAVE_PLOTS=0 MO_SAVE_ARCHIVE_POINTS=0 python multi_objective/run_multi_objective_comparison.py
-```
-
-运行 IABC 参数敏感性分析：
-
-```bash
-python single_objective\run_iabc_sensitivity.py
-```
-
-也可以进入子目录后运行：
-
-```bash
-cd single_objective
-python run_single_objective_comparison.py
-```
-
-```bash
-cd multi_objective
-python run_multi_objective_comparison.py
-```
-
-## 参数配置
-
-### 单目标参数
-
-在 `single_objective/run_single_objective_comparison.py` 中修改：
+在 `single_objective/run_single_objective_comparison.py` 中配置：
 
 ```python
 RUN_TIMES = 1
 BOUNDS = [(-100, 100)] * 10
+PARALLEL_WORKERS = 4
 ENABLED_SUITES = ["CEC2022"]
 ENABLED_FUNCTION_IDS = []
 ENABLED_ALGORITHMS = []
@@ -209,112 +103,48 @@ COMMON_PARAMS = {
 }
 ```
 
-### 多目标参数
+`ENABLED_ALGORITHMS = []` 表示运行所有单目标算法。正式实验建议将 `RUN_TIMES` 调整为 30 或更高。
 
-在 `multi_objective/run_multi_objective_comparison.py` 中修改：
+### 运行
 
-```python
-RUN_TIMES = 10
-ENABLED_SUITES = ["ZDT", "CEC2009_UF", "CEC2020_MMO"]
-ENABLED_FUNCTION_IDS = []
-ENABLED_ALGORITHMS = ["MOABC", "MOIABC"]
-
-COMMON_PARAMS = {
-    "bee": 80,
-    "max_iter": 800,
-    "limit": 160,
-    "archive_size": 100,
-}
-
-MOIABC_BEST_PARAMS = {
-    "tournament_size": 3,
-    "elite_rate": 0.05,
-    "elimination_rate": 0.10,
-}
+```bash
+python single_objective\run_single_objective_comparison.py
 ```
 
-### 参数含义
-
-- `RUN_TIMES`：每个测试函数的独立运行次数
-- `bee`：蜂群规模，也对应部分对比算法的种群规模
-- `max_iter`：最大迭代次数
-- `limit`：侦察蜂重新初始化的触发阈值
-- `archive_size`：多目标 Pareto 档案最大容量
-- `ENABLED_SUITES`：启用哪些测试集
-- `ENABLED_FUNCTION_IDS`：只运行指定测试函数；空列表表示运行已启用测试集中的全部函数
-- `ENABLED_ALGORITHMS`：只运行指定算法；空列表表示运行全部算法
-
-### 多核运行
-
-PowerShell：
+关闭单目标图像导出：
 
 ```powershell
-$env:MO_SAVE_PLOTS="0"
-$env:MO_SAVE_ARCHIVE_POINTS="0"
-python multi_objective\run_multi_objective_comparison.py
+$env:SO_SAVE_PLOTS="0"
+python single_objective\run_single_objective_comparison.py
 ```
 
-并行进程数已固定为 4。
+输出目录：
 
-## 常用配置示例
-
-只运行 CEC2022 的 F1 和 F6：
-
-```python
-ENABLED_SUITES = ["CEC2022"]
-ENABLED_FUNCTION_IDS = ["CEC2022_F1", "CEC2022_F6"]
+```text
+single_objective/comparison_results/
 ```
 
-只运行 ZDT1 和 ZDT4：
+主要输出：
 
-```python
-ENABLED_SUITES = ["ZDT"]
-ENABLED_FUNCTION_IDS = ["ZDT1", "ZDT4"]
+- `*_results.csv`：每次独立运行的最优值、误差、耗时和随机种子
+- `*_best_value_curve.png`：独立运行最优值曲线
+- `*_error_boxplot.png`：误差箱线图
+- `*_average_convergence.png`：平均收敛曲线
+- `wilcoxon_*_vs_iabc_results.csv`：各算法相对 `IABC` 的 Wilcoxon 检验
+- `wilcoxon_test_results.csv`：Wilcoxon 汇总结果
+- `average_rank_results.csv`：跨测试函数平均排名
+
+### IABC 参数敏感性
+
+```bash
+python single_objective\run_iabc_sensitivity.py
 ```
-
-只运行 CEC2009 UF1 和 UF10：
-
-```python
-ENABLED_SUITES = ["CEC2009_UF"]
-ENABLED_FUNCTION_IDS = ["UF1", "UF10"]
-```
-
-只运行部分 CEC2020 MMO 函数：
-
-```python
-ENABLED_SUITES = ["CEC2020_MMO"]
-ENABLED_FUNCTION_IDS = ["MMF1", "MMF10", "MMF13"]
-```
-
-只运行指定单目标算法：
-
-```python
-ENABLED_ALGORITHMS = ["ABC", "IABC"]
-```
-
-只运行指定多目标算法：
-
-```python
-ENABLED_ALGORITHMS = ["MOABC", "MOIABC"]
-```
-
-运行基本多目标对比算法：
-
-```python
-ENABLED_ALGORITHMS = ["NSGA-II", "MOPSO"]
-```
-
-## IABC 参数敏感性分析
-
-敏感性分析脚本位于 `single_objective/run_iabc_sensitivity.py`。
 
 默认扫描：
 
 ```python
 RUN_TIMES = 30
 SEED_BASE = 20240621
-ENABLED_SUITES = ["CEC2022"]
-
 ELITE_RATES = [0.05, 0.10, 0.15, 0.20, 0.25]
 ELIMINATION_RATES = [0.05, 0.10, 0.15, 0.20, 0.25]
 ```
@@ -325,58 +155,277 @@ ELIMINATION_RATES = [0.05, 0.10, 0.15, 0.20, 0.25]
 single_objective/sensitivity_results/
 ```
 
-主要输出文件：
+主要输出：
 
-- `sensitivity_detail_results.csv`：每次独立运行的详细结果
-- `sensitivity_summary_by_function.csv`：每个测试函数上的参数组合统计
-- `sensitivity_average_rank.csv`：参数组合平均排名
+- `sensitivity_detail_results.csv`
+- `sensitivity_summary_by_function.csv`
+- `sensitivity_average_rank.csv`
 
-判断参数组合时优先看 `sensitivity_average_rank.csv`：
+可使用 `plot_single_objective_results.py` 绘制对比表或敏感性分析图：
 
-- `average_rank` 越小，整体排名越靠前
-- `best_count` 越大，说明该参数组合在更多测试函数上取得第一
+```bash
+python single_objective\plot_single_objective_results.py --input-dir single_objective\comparison_results
+python single_objective\plot_single_objective_results.py --mode sensitivity --input-dir single_objective\sensitivity_results
+```
 
-完整默认敏感性分析运行量较大。可以先减少 `RUN_TIMES`、测试函数数量或参数候选值做预实验。
+## 多目标优化实验
 
-## 输出文件
+### 算法
 
-### 单目标输出
+多目标实验位于 `multi_objective/`，当前包含 7 个算法：
+
+- `MOABC`：基本多目标人工蜂群算法
+- `MODE`：多目标差分进化算法
+- `NSGA-II`：非支配排序遗传算法
+- `MOPSO`：多目标粒子群算法
+- `Zhou-IMOABC`：Zhou 风格改进多目标人工蜂群算法
+- `Zhao-IMOABC`：Zhao 风格改进多目标人工蜂群算法
+- `MOIABC`：本项目多目标改进人工蜂群算法
+
+### 测试函数
+
+当前多目标测试集包括：
+
+- `ZDT`：`ZDT1`, `ZDT2`, `ZDT3`, `ZDT4`, `ZDT6`
+- `CEC2009_UF`：`UF1` 至 `UF10`
+- `CEC2020_MMO`：`MMF1`, `MMF2`, `MMF4`, `MMF5`, `MMF7`, `MMF8`, `MMF10`, `MMF11`, `MMF12`, `MMF13`
+
+多目标结果是一组 Pareto 非支配解，不是单个最优解。主要评价指标：
+
+- `hypervolume`：超体积，越大越好
+- `spacing`：解集分布间距，越小越好
+- `best_sum`：档案中最小目标和，越小越好
+
+### 默认配置
+
+在 `multi_objective/run_multi_objective_comparison.py` 中配置：
+
+```python
+RUN_TIMES = 30
+SEED_BASE = 20260723
+OUTPUT_DIR = MODULE_DIR / "mo_comparison_results_baselines_no_moiabc"
+PARALLEL_WORKERS = 4
+SAVE_ARCHIVE_POINTS = True
+SAVE_PLOTS = True
+
+ENABLED_SUITES = ["ZDT", "CEC2009_UF", "CEC2020_MMO"]
+ENABLED_FUNCTION_IDS = []
+ENABLED_ALGORITHMS = ["MOABC", "MODE", "NSGA-II", "MOPSO", "Zhou-IMOABC", "Zhao-IMOABC"]
+
+COMMON_PARAMS = {
+    "bee": 80,
+    "max_iter": 800,
+    "limit": 160,
+    "archive_size": 100,
+}
+
+MOIABC_BEST_PARAMS = {
+    "tournament_size": 3,
+    "elite_rate": 0.25,
+    "elimination_rate": 0.25,
+}
+```
+
+当前默认对比配置不启用 `MOIABC`，主要用于 baseline 算法对比；如需加入 `MOIABC`，将 `ENABLED_ALGORITHMS` 改为包含 `"MOIABC"`。
+
+### 运行
+
+```bash
+python multi_objective\run_multi_objective_comparison.py
+```
 
 输出目录：
 
 ```text
-single_objective/comparison_results/
+multi_objective/mo_comparison_results_baselines_no_moiabc/
 ```
 
-主要文件：
-
-- `*_results.csv`：每次独立运行的最优值、误差、耗时和随机种子
-- `*_best_value_curve.png`：每次独立运行的最优值曲线
-- `*_error_boxplot.png`：误差箱线图
-- `*_average_convergence.png`：平均收敛曲线
-- `wilcoxon_*_vs_iabc_results.csv`：各算法与 `IABC` 的 Wilcoxon 结果
-- `wilcoxon_test_results.csv`：汇总后的 Wilcoxon 结果
-- `average_rank_results.csv`：跨测试函数平均排名
-
-### 多目标输出
-
-输出目录：
-
-```text
-multi_objective/mo_comparison_results/
-```
-
-主要文件：
+主要输出：
 
 - `*_results.csv`：每次独立运行的档案规模、目标和、spacing、hypervolume、耗时等
 - `*_archive_points.csv`：Pareto 档案中的目标函数值
 - `*_pareto_scatter.png`：Pareto 非支配解散点图
 - `*_average_history.png`：平均收敛参考曲线
-- `wilcoxon_*_vs_moiabc_results.csv`：各算法与 `MOIABC` 的 Wilcoxon 结果
-- `wilcoxon_test_results.csv`：汇总后的 Wilcoxon 结果
-- `average_rank_results.csv`：跨测试函数平均排名
+- `wilcoxon_*_vs_moiabc_results.csv`：启用 `MOIABC` 时生成的 Wilcoxon 检验
+- `wilcoxon_test_results.csv`
+- `average_rank_results.csv`
 
-## 统计说明
+## 多目标 MOIABC 扩展实验
+
+### elite_rate / elimination_rate 敏感性
+
+```bash
+python multi_objective\run_moiabc_elite_elimination_sensitivity.py
+```
+
+默认输出目录：
+
+```text
+multi_objective/moiabc_elite_elimination_sensitivity_results/
+```
+
+常用环境变量：
+
+- `MOIABC_SENSITIVITY_RUN_TIMES`
+- `MOIABC_SENSITIVITY_SEED_BASE`
+- `MOIABC_SENSITIVITY_WORKERS`
+- `MOIABC_SENSITIVITY_SUITES`
+- `MOIABC_SENSITIVITY_FUNCTION_IDS`
+- `MOIABC_ELITE_ELIMINATION_SENSITIVITY_OUTPUT_DIR`
+
+示例：
+
+```powershell
+$env:MOIABC_SENSITIVITY_RUN_TIMES="5"
+$env:MOIABC_SENSITIVITY_FUNCTION_IDS="ZDT1,UF1,MMF1"
+python multi_objective\run_moiabc_elite_elimination_sensitivity.py
+```
+
+### archive_rate 敏感性
+
+```bash
+python multi_objective\run_moiabc_archive_rate_sensitivity.py
+```
+
+默认扫描：
+
+```python
+ARCHIVE_RATES = [0.40]
+```
+
+默认输出目录：
+
+```text
+multi_objective/moiabc_archive_rate_sensitivity_results/
+```
+
+常用环境变量：
+
+- `MOIABC_ARCHIVE_RATE_SENSITIVITY_RUN_TIMES`
+- `MOIABC_ARCHIVE_RATE_SENSITIVITY_SEED_BASE`
+- `MOIABC_ARCHIVE_RATE_SENSITIVITY_WORKERS`
+- `MOIABC_ARCHIVE_RATE_SENSITIVITY_SUITES`
+- `MOIABC_ARCHIVE_RATE_SENSITIVITY_FUNCTION_IDS`
+- `MOIABC_ARCHIVE_RATE_SENSITIVITY_OUTPUT_DIR`
+
+### 消融实验
+
+```bash
+python multi_objective\run_moiabc_ablation.py
+```
+
+默认消融变体：
+
+- `MOIABC`
+- `MOIABC-no-good-point-init`
+- `MOIABC-no-tournament-selection`
+- `MOIABC-no-elite-enhancement`
+- `MOIABC-no-worst-elimination`
+- `MOABC-equivalent`
+
+默认输出目录：
+
+```text
+multi_objective/moiabc_ablation_results/
+```
+
+常用环境变量：
+
+- `MOIABC_ABLATION_RUN_TIMES`
+- `MOIABC_ABLATION_SEED_BASE`
+- `MOIABC_ABLATION_WORKERS`
+- `MOIABC_ABLATION_SUITES`
+- `MOIABC_ABLATION_FUNCTION_IDS`
+- `MOIABC_ABLATION_VARIANTS`
+- `MOIABC_ABLATION_SAVE_ARCHIVE_POINTS`
+- `MOIABC_ABLATION_OUTPUT_DIR`
+
+### 绘图
+
+`plot_moiabc_sensitivity_results.py` 可用于绘制 MOIABC 参数敏感性和消融实验图表：
+
+```bash
+python multi_objective\plot_moiabc_sensitivity_results.py --input-dir multi_objective\moiabc_elite_elimination_sensitivity_results
+python multi_objective\plot_moiabc_sensitivity_results.py --mode ablation --input-dir multi_objective\moiabc_ablation_results
+```
+
+## 微电网调度应用案例
+
+应用案例位于 `multi_objective/application_point/`，使用 MOIABC 对 24 小时微电网调度进行双目标优化。
+
+决策变量：
+
+- 24 小时柴油机出力
+- 24 小时储能充放电功率
+
+目标函数：
+
+- 经济成本
+- 环境治理成本
+
+运行命令：
+
+```bash
+python multi_objective\application_point\run_microgrid_dispatch.py
+```
+
+常用环境变量：
+
+- `APP_SEED`
+- `APP_BEE`
+- `APP_MAX_ITER`
+- `APP_LIMIT`
+- `APP_ARCHIVE_SIZE`
+- `APP_SAVE_PLOTS`
+
+输出目录：
+
+```text
+multi_objective/application_point/results/
+```
+
+主要输出：
+
+- `multi_objective_summary.json`
+- `multi_objective_pareto.csv`
+- `multi_objective_compromise_dispatch.csv`
+- `multi_objective_pareto.png`
+- `multi_objective_history.png`
+
+## 常用配置方法
+
+只运行指定测试函数：
+
+```python
+ENABLED_FUNCTION_IDS = ["CEC2022_F1", "CEC2022_F6"]
+```
+
+只运行指定单目标算法：
+
+```python
+ENABLED_ALGORITHMS = ["ABC", "IABC"]
+```
+
+只运行指定多目标测试函数：
+
+```python
+ENABLED_FUNCTION_IDS = ["ZDT1", "UF1", "MMF1"]
+```
+
+只运行指定多目标算法：
+
+```python
+ENABLED_ALGORITHMS = ["MOABC", "MOIABC"]
+```
+
+关闭输出图像或档案点导出时，按脚本实际支持方式修改：
+
+- 单目标对比：使用环境变量 `SO_SAVE_PLOTS=0`
+- 微电网案例：使用环境变量 `APP_SAVE_PLOTS=0`
+- 多目标主对比：修改脚本常量 `SAVE_PLOTS`、`SAVE_ARCHIVE_POINTS`
+- 多目标消融：使用环境变量 `MOIABC_ABLATION_SAVE_ARCHIVE_POINTS=0`
+
+## 统计结果说明
 
 `wilcoxon_test_results.csv` 常用字段：
 
@@ -386,15 +435,12 @@ multi_objective/mo_comparison_results/
 - `p_improved`：改进方向单侧检验 p 值
 - `significant_0_05`：双侧检验是否达到 0.05 显著性水平
 
-`average_rank_results.csv` 中的 `average_rank` 越小，表示算法在对应指标上的整体排名越靠前。
+`average_rank_results.csv` 和各类 `*_average_rank.csv` 中的 `average_rank` 越小，表示整体排名越靠前。
 
 ## 注意事项
 
-- 单目标 CEC2022 当前使用项目内置的 10 维平移、旋转和打乱数据。
-- 如果修改单目标实验维度，需要补充对应维度的 CEC 数据。
-- `CEC2022` 单目标测试集当前为 12 个函数，即 `CEC2022_F1` 到 `CEC2022_F12`。
-- `RUN_TIMES = 1` 只适合快速调试；正式实验建议使用 30 次或更多独立运行。
+- 单目标 CEC2022 当前使用项目内置的 10 维平移、旋转和打乱数据；如果修改维度，需要补充对应维度的数据。
 - `RUN_TIMES`、`bee`、`max_iter`、`limit`、测试函数数量和算法数量会直接影响运行时间。
-- CSV 使用 `utf-8-sig` 编码保存，便于使用 Excel 打开。
+- CSV 使用 `utf-8-sig` 编码保存，便于用 Excel 打开。
 - 图像中文字体依赖系统字体，脚本默认尝试使用 `Microsoft YaHei`、`SimHei`、`SimSun`。
-- `.gitignore` 已忽略结果目录、Python 缓存、`.env` 和常见密钥文件，避免误提交本地结果或凭据。
+- `.gitignore` 已忽略实验输出目录、Python 缓存、本地环境文件和常见密钥文件。

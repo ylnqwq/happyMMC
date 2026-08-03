@@ -59,9 +59,9 @@ IABC/
     |-- algorithms/
     |   |-- MOABC.py
     |   |-- MODE.py
+    |   |-- MOEAD.py
     |   |-- MOIABC.py
     |   |-- MOPSO.py
-    |   |-- NSGA2.py
     |   |-- Zhou_IMOABC.py
     |   `-- Zhao_IMOABC.py
     `-- application_point/
@@ -179,7 +179,7 @@ python single_objective\plot_single_objective_results.py --mode sensitivity --in
 
 - `MOABC`：基本多目标人工蜂群算法
 - `MO-DE`：多目标差分进化算法
-- `NSGA-II`：非支配排序遗传算法
+- `MOEA/D`：基于分解的多目标进化算法
 - `MOPSO`：多目标粒子群算法
 - `Zhou-IMOABC`：Zhou 风格改进多目标人工蜂群算法
 - `Zhao-IMOABC`：Zhao 风格改进多目标人工蜂群算法
@@ -204,20 +204,20 @@ python single_objective\plot_single_objective_results.py --mode sensitivity --in
 在 `multi_objective/run_multi_objective_comparison.py` 中配置：
 
 ```python
-RUN_TIMES = 30
-SEED_BASE = 20260723
-PARALLEL_WORKERS = 4
-SAVE_ARCHIVE_POINTS = True
-SAVE_PLOTS = True
+RUN_TIMES = env_int("MO_COMPARISON_RUN_TIMES", 30)
+SEED_BASE = env_int("MO_COMPARISON_SEED_BASE", 20260723)
+PARALLEL_WORKERS = env_int("MO_COMPARISON_WORKERS", 4)
+SAVE_ARCHIVE_POINTS = env_bool("MO_COMPARISON_SAVE_ARCHIVE_POINTS", True)
+SAVE_PLOTS = env_bool("MO_COMPARISON_SAVE_PLOTS", True)
 
-ENABLED_SUITES = ["ZDT", "CEC2009_UF", "CEC2020_MMO"]
-ENABLED_FUNCTION_IDS = []
+ENABLED_SUITES = env_csv("MO_COMPARISON_SUITES", ["ZDT", "CEC2009_UF", "CEC2020_MMO"])
+ENABLED_FUNCTION_IDS = env_csv("MO_COMPARISON_FUNCTION_IDS")
 
 EXPERIMENT_GROUPS = [
     {
         "name": "standard_algorithms",
         "output_dir": MODULE_DIR / "mo_comparison_results_standard_algorithms",
-        "algorithms": ["MO-DE", "NSGA-II", "MOPSO", "MOABC", "MOIABC"],
+        "algorithms": ["MO-DE", "MOEA/D", "MOPSO", "MOABC", "MOIABC"],
     },
     {
         "name": "improved_algorithms",
@@ -247,6 +247,20 @@ MOIABC_BEST_PARAMS = {
 python multi_objective\run_multi_objective_standard_comparison.py
 python multi_objective\run_multi_objective_improved_comparison.py
 ```
+
+可用环境变量分批运行。示例：先跑 `ZDT` 和 `CEC2009_UF`，再跑 `MMF`（代码中对应测试集名为 `CEC2020_MMO`）：
+
+```powershell
+$env:MO_COMPARISON_SUITES="ZDT,CEC2009_UF"
+$env:MO_COMPARISON_STANDARD_OUTPUT_DIR="mo_comparison_results_standard_zdt_uf"
+python multi_objective\run_multi_objective_standard_comparison.py
+
+$env:MO_COMPARISON_SUITES="CEC2020_MMO"
+$env:MO_COMPARISON_STANDARD_OUTPUT_DIR="mo_comparison_results_standard_mmf"
+python multi_objective\run_multi_objective_standard_comparison.py
+```
+
+改进算法组同理，把输出目录变量换成 `MO_COMPARISON_IMPROVED_OUTPUT_DIR`。
 
 输出目录：
 

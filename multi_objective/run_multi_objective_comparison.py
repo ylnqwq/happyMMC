@@ -19,7 +19,7 @@ if str(ROOT_DIR) not in sys.path:
 if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
-from multi_objective.algorithms import MOABC, MODE, MOIABC, MOPSO, NSGA2, Zhao_IMOABC, Zhou_IMOABC
+from multi_objective.algorithms import MOABC, MODE, MOEAD, MOIABC, MOPSO, Zhao_IMOABC, Zhou_IMOABC
 from multi_objective.mo_utils import calculate_hypervolume, non_dominated_mask, spacing_metric
 from multi_objective.multiobjective_benchmarks import CEC2009_UF_BENCHMARKS, CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
 from multi_objective.statistical_tests import (
@@ -28,30 +28,46 @@ from multi_objective.statistical_tests import (
     save_average_rank_results,
     save_wilcoxon_results,
 )
-from experiment_utils import print_progress, save_rows_to_csv, select_enabled_items
+from experiment_utils import (
+    env_bool,
+    env_csv,
+    env_int,
+    env_output_dir,
+    print_progress,
+    save_rows_to_csv,
+    select_enabled_items,
+)
 
 
-RUN_TIMES = 30
-SEED_BASE = 20260723
-PARALLEL_WORKERS = 4
-SAVE_ARCHIVE_POINTS = True
-SAVE_PLOTS = True
+RUN_TIMES = env_int("MO_COMPARISON_RUN_TIMES", 30)
+SEED_BASE = env_int("MO_COMPARISON_SEED_BASE", 20260723)
+PARALLEL_WORKERS = env_int("MO_COMPARISON_WORKERS", 4)
+SAVE_ARCHIVE_POINTS = env_bool("MO_COMPARISON_SAVE_ARCHIVE_POINTS", True)
+SAVE_PLOTS = env_bool("MO_COMPARISON_SAVE_PLOTS", True)
 
 # 全局测试开关：
 # 1. ENABLED_SUITES 控制要跑哪些测试集，可选 "ZDT"、"CEC2009_UF"、"CEC2020_MMO"。
 # 2. ENABLED_FUNCTION_IDS 控制要跑哪些具体函数，空列表表示不过滤。
 #    例：只跑 ZDT1、UF1 和 MMF1 -> ENABLED_FUNCTION_IDS = ["ZDT1", "UF1", "MMF1"]
-ENABLED_SUITES = ["ZDT", "CEC2009_UF", "CEC2020_MMO"]
-ENABLED_FUNCTION_IDS = []
+ENABLED_SUITES = env_csv("MO_COMPARISON_SUITES", ["ZDT", "CEC2009_UF", "CEC2020_MMO"])
+ENABLED_FUNCTION_IDS = env_csv("MO_COMPARISON_FUNCTION_IDS")
 
 STANDARD_EXPERIMENT_GROUP = {
     "name": "standard_algorithms",
-    "output_dir": MODULE_DIR / "mo_comparison_results_standard_algorithms",
-    "algorithms": ["MO-DE", "NSGA-II", "MOPSO", "MOABC", "MOIABC"],
+    "output_dir": env_output_dir(
+        "MO_COMPARISON_STANDARD_OUTPUT_DIR",
+        MODULE_DIR / "mo_comparison_results_standard_algorithms",
+        MODULE_DIR,
+    ),
+    "algorithms": ["MO-DE", "MOEA/D", "MOPSO", "MOABC", "MOIABC"],
 }
 IMPROVED_EXPERIMENT_GROUP = {
     "name": "improved_algorithms",
-    "output_dir": MODULE_DIR / "mo_comparison_results_improved_algorithms",
+    "output_dir": env_output_dir(
+        "MO_COMPARISON_IMPROVED_OUTPUT_DIR",
+        MODULE_DIR / "mo_comparison_results_improved_algorithms",
+        MODULE_DIR,
+    ),
     "algorithms": ["Zhou-IMOABC", "Zhao-IMOABC", "MOIABC"],
 }
 EXPERIMENT_GROUPS = [
@@ -101,12 +117,14 @@ ALGORITHMS = [
         },
     },
     {
-        "name": "NSGA-II",
-        "runner": NSGA2.nsga2,
+        "name": "MOEA/D",
+        "runner": MOEAD.moead,
         "params": {
             "population_size": COMMON_PARAMS["bee"],
             "max_iter": COMMON_PARAMS["max_iter"],
             "archive_size": COMMON_PARAMS["archive_size"],
+            "neighborhood_size": 20,
+            "mutation_factor": 0.5,
             "crossover_rate": 0.9,
         },
     },

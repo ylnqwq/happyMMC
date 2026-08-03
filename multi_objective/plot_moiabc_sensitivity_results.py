@@ -256,7 +256,7 @@ def parameter_index_key(benchmark_id, key):
 def parameter_label(key, multiline=False):
     separator = "\n" if multiline else ", "
     if len(key) == 1:
-        return f"ar={format_rate(key[0])}"
+        return f"ra={format_rate(key[0])}"
     if len(key) == 2:
         return separator.join([f"e={format_rate(key[0])}", f"d={format_rate(key[1])}"])
     return separator.join(format_rate(value) for value in key)
@@ -269,7 +269,7 @@ def parameter_row_fields(key, columns):
 def parameter_note(columns, higher_is_better):
     direction = "越大越优" if higher_is_better else "越小越优"
     if columns == ("archive_rate",):
-        prefix = "注：ar 表示 archive_rate；"
+        prefix = "注：ra 表示外部档案引导率；"
     else:
         prefix = "注：e 表示 elite_rate，d 表示 elimination_rate；"
     return (
@@ -287,7 +287,7 @@ def sensitivity_output_prefix(summary_rows):
 
 def sensitivity_title_label(summary_rows):
     if sensitivity_parameter_columns(summary_rows) == ("archive_rate",):
-        return "MOIABC archive_rate 敏感性分析"
+        return "MOIABC ra 敏感性分析"
     return "MOIABC 参数敏感性分析"
 
 
@@ -1006,7 +1006,7 @@ def draw_friedman_rank_bar(
     rows,
     output_path,
     show_title=False,
-    x_label="算法变量",
+    x_label="算法变体",
     value_key="average_rank",
     y_label="排名",
     value_format="{:.2f}",
@@ -1101,7 +1101,7 @@ def draw_sensitivity_rank_outputs(args):
         rank_rows = sensitivity_rank_rows(summary_rows, metric, sort_by="average_rank")[: args.top_k]
         output_png = output_dir / f"{prefix}_friedman_{suffix}_rank.png"
         output_csv = output_png.with_suffix(".csv")
-        x_label = "archive_rate" if sensitivity_parameter_columns(summary_rows) == ("archive_rate",) else "参数组合"
+        x_label = "外部档案引导率" if sensitivity_parameter_columns(summary_rows) == ("archive_rate",) else "参数组合"
         draw_friedman_rank_bar(rank_rows, output_png, show_title=False, x_label=x_label)
         write_friedman_rank_csv(rank_rows, output_csv)
         outputs.extend([output_png, output_csv])
@@ -1178,6 +1178,15 @@ def write_ablation_effect_csv(rows, output_path):
         writer.writerows(rows)
 
 
+def try_write_csv(write_func, *args):
+    try:
+        write_func(*args)
+        return True
+    except PermissionError as error:
+        print(f"Skip locked CSV: {error.filename}")
+        return False
+
+
 def draw_ablation_effect_table(rows, output_path, show_title=True):
     metrics = ["hypervolume", "spacing", "best_sum"]
     variants = []
@@ -1186,7 +1195,7 @@ def draw_ablation_effect_table(rows, output_path, show_title=True):
             variants.append(row["variant"])
     index = {(row["metric"], row["variant"]): row for row in rows}
 
-    column_headers = ["鎸囨爣"] + [ABLATION_ALGORITHM_LABELS.get(variant, variant) for variant in variants]
+    column_headers = ["指标"] + [ABLATION_ALGORITHM_LABELS.get(variant, variant) for variant in variants]
     column_widths = [1.35] + [2.15] * len(variants)
     total_width = sum(column_widths)
     row_count = len(metrics)
@@ -1312,7 +1321,7 @@ def draw_ablation_outputs(args):
                 output_png,
                 show_title=not args.no_title,
             )
-            write_ablation_table_csv(summary_rows, benchmark_ids, algorithms, metric, output_csv)
+            try_write_csv(write_ablation_table_csv, summary_rows, benchmark_ids, algorithms, metric, output_csv)
             outputs.extend([output_png, output_csv])
 
         wilcoxon_rows = read_filtered_wilcoxon_rows(input_dir)
@@ -1320,7 +1329,7 @@ def draw_ablation_outputs(args):
         output_png = output_dir / "moiabc_ablation_effect_summary_table.png"
         output_csv = output_png.with_suffix(".csv")
         draw_ablation_effect_table(effect_rows, output_png, show_title=not args.no_title)
-        write_ablation_effect_csv(effect_rows, output_csv)
+        try_write_csv(write_ablation_effect_csv, effect_rows, output_csv)
         outputs.extend([output_png, output_csv])
 
     for output in outputs:
@@ -1399,7 +1408,7 @@ def draw_table_paper(summary_rows, benchmark_ids, combinations, metric, output_p
 
     if show_title:
         if columns == ("archive_rate",):
-            title = f"表X MOIABC 不同 archive_rate 的敏感性分析结果（{spec['label']}）"
+            title = f"表X MOIABC 不同 ra 的敏感性分析结果（{spec['label']}）"
         else:
             title = f"表X MOIABC 不同参数组合的敏感性分析结果（{spec['label']}）"
         ax.text(

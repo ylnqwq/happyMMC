@@ -34,6 +34,7 @@ from experiment_utils import (
     env_int,
     env_output_dir,
     print_progress,
+    safe_filename_stem,
     save_rows_to_csv,
     select_enabled_items,
 )
@@ -493,7 +494,7 @@ def run_experiment_group(group, benchmarks):
         for base_algorithm in [name for name in enabled_algorithm_names if name != "MOIABC"]:
             wilcoxon_rows.extend(
                 save_wilcoxon_results(
-                    output_dir / f"wilcoxon_{base_algorithm.lower()}_vs_moiabc_results.csv",
+                    output_dir / f"wilcoxon_{safe_filename_stem(base_algorithm)}_vs_moiabc_results.csv",
                     all_results,
                     base_algorithm=base_algorithm,
                     improved_algorithm="MOIABC",

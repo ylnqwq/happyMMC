@@ -13,6 +13,8 @@
 /multi_objective/moiabc_ablation_*_results/
 /multi_objective/mo_comparison_results/
 /multi_objective/mo_comparison_results_baselines_no_moiabc/
+/multi_objective/mo_comparison_results_standard_algorithms/
+/multi_objective/mo_comparison_results_standard_algorithms_*/
 /multi_objective/application_point/results/*
 !/multi_objective/application_point/results/.gitkeep
 /_extracted_refs/

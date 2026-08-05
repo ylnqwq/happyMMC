@@ -2,6 +2,7 @@
 
 import csv
 import os
+import re
 from pathlib import Path
 
 
@@ -43,6 +44,10 @@ def format_float(value, precision=16):
     if value == "":
         return ""
     return f"{float(value):.{precision}f}"
+
+
+def safe_filename_stem(value):
+    return re.sub(r"[^0-9A-Za-z._-]+", "_", str(value).lower()).strip("._-")
 
 
 def save_rows_to_csv(filename, rows, fieldnames=None):

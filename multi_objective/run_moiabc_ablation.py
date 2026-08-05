@@ -37,6 +37,7 @@ from experiment_utils import (
     env_output_dir,
     format_float,
     print_progress,
+    safe_filename_stem,
     save_rows_to_csv,
     select_enabled_items,
     select_named_items,
@@ -487,7 +488,7 @@ def main():
     for base_variant in [name for name in variant_names if name != "MOIABC"]:
         wilcoxon_rows.extend(
             save_wilcoxon_results(
-                OUTPUT_DIR / f"wilcoxon_{base_variant.lower()}_vs_moiabc_results.csv",
+                OUTPUT_DIR / f"wilcoxon_{safe_filename_stem(base_variant)}_vs_moiabc_results.csv",
                 all_results,
                 base_algorithm=base_variant,
                 improved_algorithm="MOIABC",

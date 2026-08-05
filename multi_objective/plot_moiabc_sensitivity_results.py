@@ -744,7 +744,18 @@ def ablation_best_value(index, benchmark_id, algorithms, mean_key, higher_is_bet
     return max(values) if higher_is_better else min(values)
 
 
-def draw_ablation_table(summary_rows, benchmark_ids, algorithms, metric, output_path, show_title=True):
+def draw_ablation_table(
+    summary_rows,
+    benchmark_ids,
+    algorithms,
+    metric,
+    output_path,
+    show_title=True,
+    title_prefix="MOIABC 消融实验结果",
+    show_note=False,
+    cell_suffixes=None,
+    note_suffix="",
+):
     spec = METRIC_SPECS[metric]
     mean_key = spec["mean"]
     std_key = spec["std"]
@@ -757,13 +768,14 @@ def draw_ablation_table(summary_rows, benchmark_ids, algorithms, metric, output_
     benchmark_count = len(benchmark_ids)
     row_count = benchmark_count + 1
     title_space = 0.62 if show_title else 0.05
+    note_space = 0.42 if show_note else 0.0
     fig_width = max(12.0, total_width * 0.82)
-    fig_height = max(7.0, 1.05 + title_space + row_count * 0.32)
+    fig_height = max(7.0, 1.05 + title_space + note_space + row_count * 0.32)
 
     fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=300)
     ax.set_axis_off()
     ax.set_xlim(0, total_width)
-    ax.set_ylim(0, row_count + 1.55 + title_space)
+    ax.set_ylim(-note_space, row_count + 1.55 + title_space)
 
     font_family = ["Times New Roman", "SimSun"]
     x_positions = np.cumsum([0] + column_widths)
@@ -772,7 +784,7 @@ def draw_ablation_table(summary_rows, benchmark_ids, algorithms, metric, output_
         ax.text(
             total_width / 2,
             row_count + 1.46,
-            f"MOIABC 消融实验结果（{spec['label']}）",
+            f"{title_prefix}（{spec['label']}）",
             ha="center",
             va="center",
             fontsize=13,
@@ -826,7 +838,8 @@ def draw_ablation_table(summary_rows, benchmark_ids, algorithms, metric, output_
                 mean = row[mean_key]
                 std = row[std_key]
                 relative_mean = relative_to_best(mean, best_value, higher_is_better)
-                text = f"{format_scientific(relative_mean)}±{format_scientific(std)}"
+                suffix = (cell_suffixes or {}).get((benchmark_id, algorithm, metric), "")
+                text = f"{format_scientific(relative_mean)}±{format_scientific(std)}{suffix}"
                 is_best = is_best_cell(mean, best_value)
                 fontweight = "bold" if is_best else "normal"
                 if is_best:
@@ -857,11 +870,20 @@ def draw_ablation_table(summary_rows, benchmark_ids, algorithms, metric, output_
         x = (x_positions[column_index] + x_positions[column_index + 1]) / 2
         ax.text(x, count_y, str(count), ha="center", va="center", fontsize=8.8, family=font_family)
 
+    if show_note:
+        direction = "越大越优" if higher_is_better else "越小越优"
+        note = (
+            f"注：数值为相对本行最优均值的差值±标准差（最优为 0，原指标{direction}）；"
+            "每行加粗表示该测试函数上的最优算法。"
+            + note_suffix
+        )
+        ax.text(0, -0.28, note, ha="left", va="center", fontsize=8.2, family=font_family)
+
     fig.savefig(output_path, bbox_inches="tight", pad_inches=0.08)
     plt.close(fig)
 
 
-def write_ablation_table_csv(summary_rows, benchmark_ids, algorithms, metric, output_path):
+def write_ablation_table_csv(summary_rows, benchmark_ids, algorithms, metric, output_path, cell_suffixes=None):
     spec = METRIC_SPECS[metric]
     mean_key = spec["mean"]
     std_key = spec["std"]
@@ -883,7 +905,8 @@ def write_ablation_table_csv(summary_rows, benchmark_ids, algorithms, metric, ou
                     output_row[header] = ""
                     continue
                 relative_mean = relative_to_best(row[mean_key], best_value, higher_is_better)
-                output_row[header] = f"{format_scientific(relative_mean)}±{format_scientific(row[std_key])}"
+                suffix = (cell_suffixes or {}).get((benchmark_id, algorithm, metric), "")
+                output_row[header] = f"{format_scientific(relative_mean)}±{format_scientific(row[std_key])}{suffix}"
                 if is_best_cell(row[mean_key], best_value):
                     best_counts[algorithm_index] += 1
             writer.writerow(output_row)
@@ -1121,6 +1144,27 @@ def read_filtered_wilcoxon_rows(input_dir):
     return [row for row in rows if row["benchmark_id"] not in EXCLUDED_DUPLICATE_BENCHMARK_IDS]
 
 
+def wilcoxon_sign(row):
+    p_value = to_float(row["p_two_sided"])
+    mean_difference = to_float(row["mean_difference"])
+    if p_value >= 0.05 or math.isclose(mean_difference, 0.0, rel_tol=1e-12, abs_tol=1e-12):
+        return "="
+    return "+" if mean_difference > 0.0 else "-"
+
+
+def ablation_cell_suffixes(input_dir, reference_algorithm="MOIABC"):
+    try:
+        rows = read_filtered_wilcoxon_rows(input_dir)
+    except FileNotFoundError:
+        return {}
+    suffixes = {}
+    for row in rows:
+        if row["improved_algorithm"] != reference_algorithm:
+            continue
+        suffixes[(row["benchmark_id"], row["base_algorithm"], row["metric"])] = wilcoxon_sign(row)
+    return suffixes
+
+
 def ablation_effect_rows(wilcoxon_rows, algorithms):
     rows = []
     variants = [algorithm for algorithm in algorithms if algorithm != "MOIABC"]
@@ -1289,6 +1333,7 @@ def draw_ablation_outputs(args):
 
     benchmark_ids = sorted({row["benchmark_id"] for row in summary_rows}, key=benchmark_sort_key)
     algorithms = ablation_algorithms(summary_rows)
+    cell_suffixes = ablation_cell_suffixes(input_dir)
 
     outputs = []
     if args.friedman:
@@ -1320,8 +1365,11 @@ def draw_ablation_outputs(args):
                 metric,
                 output_png,
                 show_title=not args.no_title,
+                show_note=not args.no_note,
+                cell_suffixes=cell_suffixes,
+                note_suffix="符号 +、=、- 分别表示 MOIABC 的性能优于、相近于或劣于对应消融变体。",
             )
-            try_write_csv(write_ablation_table_csv, summary_rows, benchmark_ids, algorithms, metric, output_csv)
+            try_write_csv(write_ablation_table_csv, summary_rows, benchmark_ids, algorithms, metric, output_csv, cell_suffixes)
             outputs.extend([output_png, output_csv])
 
         wilcoxon_rows = read_filtered_wilcoxon_rows(input_dir)

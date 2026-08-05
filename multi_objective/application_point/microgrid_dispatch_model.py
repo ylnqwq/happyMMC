@@ -10,54 +10,55 @@ import numpy as np
 
 HOURS = 24
 
-# Replace these arrays when measured 24-hour data is available.
 LOAD_KW = np.array(
-    [180, 170, 165, 160, 165, 180, 210, 240, 270, 300, 330, 350,
-     360, 345, 330, 320, 340, 380, 420, 410, 360, 310, 260, 220],
+    [42, 40, 38, 37, 39, 45, 52, 60, 68, 72, 70, 66,
+     64, 62, 65, 71, 80, 92, 96, 88, 78, 68, 56, 48],
     dtype=float,
 )
 PV_KW = np.array(
-    [0, 0, 0, 0, 0, 10, 35, 70, 105, 130, 145, 150,
-     145, 130, 100, 65, 30, 5, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 3, 8, 15, 24, 32, 38,
+     40, 36, 28, 18, 8, 2, 0, 0, 0, 0, 0, 0],
     dtype=float,
 )
 WT_KW = np.array(
-    [65, 70, 75, 80, 78, 72, 65, 58, 50, 45, 42, 40,
-     38, 42, 48, 55, 62, 70, 78, 82, 80, 76, 72, 68],
+    [28, 30, 32, 34, 36, 38, 35, 33, 30, 28, 26, 24,
+     22, 20, 18, 16, 18, 22, 26, 30, 34, 36, 33, 30],
     dtype=float,
 )
 
 BUY_PRICE = np.array(
-    [0.31, 0.31, 0.31, 0.31, 0.31, 0.31, 0.31, 0.46, 0.46, 0.46,
-     0.69, 0.69, 0.69, 0.69, 0.46, 0.46, 0.46, 0.46, 0.69, 0.69,
-     0.69, 0.46, 0.46, 0.31],
+    [0.38, 0.38, 0.38, 0.38, 0.38, 0.38, 0.68, 0.68, 0.68, 1.05, 1.05, 1.05,
+     1.05, 1.05, 1.05, 0.68, 0.68, 1.05, 1.05, 1.05, 0.68, 0.68, 0.68, 0.38],
     dtype=float,
 )
 SELL_PRICE = np.array(
-    [0.23, 0.23, 0.23, 0.23, 0.23, 0.23, 0.23, 0.38, 0.38, 0.38,
-     0.64, 0.64, 0.64, 0.64, 0.38, 0.38, 0.38, 0.38, 0.64, 0.64,
-     0.64, 0.38, 0.38, 0.23],
+    [0.30, 0.30, 0.30, 0.30, 0.30, 0.30, 0.45, 0.45, 0.45, 0.70, 0.70, 0.70,
+     0.70, 0.70, 0.70, 0.45, 0.45, 0.70, 0.70, 0.70, 0.45, 0.45, 0.45, 0.30],
     dtype=float,
 )
+
+DIESEL_EMISSION_FACTOR = np.array([0.724, 0.0036, 0.0015], dtype=float)
+GRID_EMISSION_FACTOR = np.array([0.997, 0.0045, 0.0018], dtype=float)
+TREATMENT_COST = np.array([0.023, 6.0, 8.0], dtype=float)
 
 
 @dataclass(frozen=True)
 class MicrogridParams:
-    diesel_min_kw: float = 0.0
-    diesel_max_kw: float = 150.0
-    battery_charge_max_kw: float = 60.0
-    battery_discharge_max_kw: float = 60.0
-    grid_buy_max_kw: float = 200.0
-    grid_sell_max_kw: float = 200.0
-    battery_capacity_kwh: float = 300.0
+    diesel_min_kw: float = 10.0
+    diesel_max_kw: float = 65.0
+    battery_charge_max_kw: float = 30.0
+    battery_discharge_max_kw: float = 30.0
+    grid_buy_max_kw: float = 80.0
+    grid_sell_max_kw: float = 60.0
+    battery_capacity_kwh: float = 120.0
     soc_initial: float = 0.5
     soc_min: float = 0.2
-    soc_max: float = 0.8
-    charge_efficiency: float = 0.9
-    discharge_efficiency: float = 0.9
-    diesel_om_cost: float = 0.078
-    diesel_fuel_cost: float = 0.21
-    battery_om_cost: float = 0.055
+    soc_max: float = 0.9
+    charge_efficiency: float = 0.95
+    discharge_efficiency: float = 0.95
+    diesel_om_cost: float = 0.05
+    diesel_fuel_cost: float = 0.45
+    battery_om_cost: float = 0.02
     penalty_weight: float = 1.0e5
 
     @property
@@ -167,10 +168,9 @@ def evaluate_dispatch(solution, params=PARAMS):
         + np.sum(BUY_PRICE * buy_kw - SELL_PRICE * sell_kw)
     )
 
-    diesel_emission_factor = np.array([4.33, 0.46, 2.32], dtype=float)
-    treatment_cost = np.array([0.028, 5.95, 8.51], dtype=float)
-    diesel_environment_unit = float(np.dot(diesel_emission_factor, treatment_cost))
-    environment_cost = float(diesel_environment_unit * np.sum(diesel_kw))
+    diesel_environment_unit = float(np.dot(DIESEL_EMISSION_FACTOR, TREATMENT_COST))
+    grid_environment_unit = float(np.dot(GRID_EMISSION_FACTOR, TREATMENT_COST))
+    environment_cost = float(diesel_environment_unit * np.sum(diesel_kw) + grid_environment_unit * np.sum(buy_kw))
 
     penalty = 0.0
     penalty += np.sum(np.maximum(buy_kw - params.grid_buy_max_kw, 0.0) ** 2)

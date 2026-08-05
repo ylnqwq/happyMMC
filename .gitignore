@@ -1,4 +1,6 @@
 # Experiment outputs
+**/results/*
+!**/results/.gitkeep
 /结果/
 /single_objective/comparison_results/
 /single_objective/sensitivity_results/

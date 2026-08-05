@@ -192,6 +192,32 @@ def spacing_metric(objectives):
     return float(np.std(distances, ddof=1))
 
 
+def igd_metric(approximation_front, reference_front):
+    approximation_front = np.asarray(approximation_front, dtype=float)
+    reference_front = np.asarray(reference_front, dtype=float)
+    if len(approximation_front) == 0 or len(reference_front) == 0:
+        return np.inf
+
+    distances = []
+    for reference_point in reference_front:
+        diff = approximation_front - reference_point
+        distances.append(np.min(np.linalg.norm(diff, axis=1)))
+    return float(np.mean(distances))
+
+
+def igd_plus_metric(approximation_front, reference_front):
+    approximation_front = np.asarray(approximation_front, dtype=float)
+    reference_front = np.asarray(reference_front, dtype=float)
+    if len(approximation_front) == 0 or len(reference_front) == 0:
+        return np.inf
+
+    distances = []
+    for reference_point in reference_front:
+        diff = np.maximum(approximation_front - reference_point, 0.0)
+        distances.append(np.min(np.linalg.norm(diff, axis=1)))
+    return float(np.mean(distances))
+
+
 def best_sum_history_value(archive_objectives):
     if len(archive_objectives) == 0:
         return np.inf

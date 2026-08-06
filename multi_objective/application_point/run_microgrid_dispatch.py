@@ -145,6 +145,8 @@ def write_dispatch_csv(path, solution):
         "grid_kw",
         "grid_buy_kw",
         "grid_sell_kw",
+        "renewable_surplus_kw",
+        "surplus_allocation_violation_kw",
         "soc",
     ]
     with open(path, "w", newline="", encoding="utf-8-sig") as file:
@@ -152,6 +154,9 @@ def write_dispatch_csv(path, solution):
         writer.writeheader()
         for hour in range(len(dispatch["load_kw"])):
             grid_kw = dispatch["grid_kw"][hour]
+            charge_kw = max(-dispatch["battery_kw"][hour], 0.0)
+            sell_kw = max(-grid_kw, 0.0)
+            violation_kw = max(sell_kw + charge_kw - dispatch["renewable_surplus_kw"][hour], 0.0)
             writer.writerow(
                 {
                     "hour": hour + 1,
@@ -163,6 +168,8 @@ def write_dispatch_csv(path, solution):
                     "grid_kw": f"{grid_kw:.6f}",
                     "grid_buy_kw": f"{max(grid_kw, 0.0):.6f}",
                     "grid_sell_kw": f"{max(-grid_kw, 0.0):.6f}",
+                    "renewable_surplus_kw": f"{dispatch['renewable_surplus_kw'][hour]:.6f}",
+                    "surplus_allocation_violation_kw": f"{violation_kw:.6f}",
                     "soc": f"{dispatch['soc'][hour + 1]:.6f}",
                 }
             )
@@ -182,6 +189,8 @@ def write_power_curves_csv(path, solution):
         "grid_net_kw",
         "grid_buy_kw",
         "grid_sell_kw",
+        "renewable_surplus_kw",
+        "surplus_allocation_violation_kw",
         "total_generation_kw",
         "total_supply_kw",
     ]
@@ -195,6 +204,8 @@ def write_power_curves_csv(path, solution):
             battery_charge_kw = max(-battery_kw, 0.0)
             grid_buy_kw = max(grid_kw, 0.0)
             grid_sell_kw = max(-grid_kw, 0.0)
+            renewable_surplus_kw = dispatch["renewable_surplus_kw"][hour]
+            violation_kw = max(grid_sell_kw + battery_charge_kw - renewable_surplus_kw, 0.0)
             total_generation_kw = dispatch["wt_kw"][hour] + dispatch["pv_kw"][hour] + dispatch["diesel_kw"][hour]
             total_supply_kw = total_generation_kw + battery_discharge_kw + grid_buy_kw
             writer.writerow(
@@ -210,6 +221,8 @@ def write_power_curves_csv(path, solution):
                     "grid_net_kw": f"{grid_kw:.6f}",
                     "grid_buy_kw": f"{grid_buy_kw:.6f}",
                     "grid_sell_kw": f"{grid_sell_kw:.6f}",
+                    "renewable_surplus_kw": f"{renewable_surplus_kw:.6f}",
+                    "surplus_allocation_violation_kw": f"{violation_kw:.6f}",
                     "total_generation_kw": f"{total_generation_kw:.6f}",
                     "total_supply_kw": f"{total_supply_kw:.6f}",
                 }

@@ -23,10 +23,11 @@ if str(ROOT_DIR) not in sys.path:
 if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
-from experiment_utils import env_bool, env_float, env_int, env_output_dir, format_float, print_progress
-from multi_objective.algorithms import MOIABC
+from experiment_utils import env_bool, env_csv, env_float, env_int, env_output_dir, format_float, print_progress
+from multi_objective.algorithms import MOABC, MOIABC
 from multi_objective.application_point.microgrid_dispatch_model import (
     BOUNDS,
+    PARAMS,
     evaluate_dispatch,
     objective_function,
 )
@@ -43,7 +44,7 @@ OUTPUT_DIR = env_output_dir("APP_OUTPUT_DIR", MODULE_DIR / "results", MODULE_DIR
 SAVE_PLOTS = env_bool("APP_SAVE_PLOTS", True)
 RUN_TIMES = env_int("APP_RUN_TIMES", 30)
 SEED_BASE = env_int("APP_SEED", 20260723)
-PARALLEL_WORKERS = env_int("APP_WORKERS", 8)
+PARALLEL_WORKERS = env_int("APP_WORKERS", 10)
 HV_REFERENCE_VALUE = env_float("APP_HV_REFERENCE_VALUE", 1.1)
 
 BEE = env_int("APP_BEE", 80)
@@ -54,9 +55,27 @@ TOURNAMENT_SIZE = env_int("APP_TOURNAMENT_SIZE", 3)
 ELITE_RATE = env_float("APP_ELITE_RATE", 0.25)
 ELIMINATION_RATE = env_float("APP_ELIMINATION_RATE", 0.25)
 ARCHIVE_GUIDANCE_RATE = env_float("APP_ARCHIVE_GUIDANCE_RATE", 0.40)
+ENABLED_ALGORITHMS = env_csv("APP_ALGORITHMS", ["MOIABC","MOABC"])
+
+ALGORITHM_CONFIGS = {
+    "MOIABC": {
+        "runner": MOIABC.multi_objective_iabc,
+        "kwargs": {
+            "tournament_size": TOURNAMENT_SIZE,
+            "elite_rate": ELITE_RATE,
+            "elimination_rate": ELIMINATION_RATE,
+            "archive_guidance_rate": ARCHIVE_GUIDANCE_RATE,
+        },
+    },
+    "MOABC": {
+        "runner": MOABC.multi_objective_abc,
+        "kwargs": {},
+    },
+}
 
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "SimSun"]
 plt.rcParams["axes.unicode_minus"] = False
+LEGEND_FONT_SIZE = 16
 
 
 def raw_cost_objectives(archive_solutions):
@@ -137,16 +156,32 @@ def write_dispatch_csv(path, solution):
     dispatch = evaluate_dispatch(solution)
     fieldnames = [
         "hour",
+        "time_h",
         "load_kw",
+        "wind_available_kw",
+        "pv_available_kw",
         "pv_kw",
         "wt_kw",
+        "wind_curtail_kw",
+        "pv_curtail_kw",
+        "total_curtail_kw",
         "diesel_kw",
         "battery_kw",
+        "battery_discharge_kw",
+        "battery_charge_kw",
+        "battery_charge_state",
         "grid_kw",
         "grid_buy_kw",
         "grid_sell_kw",
         "renewable_surplus_kw",
         "surplus_allocation_violation_kw",
+        "diesel_ramp_up_violation_kw",
+        "diesel_ramp_down_violation_kw",
+        "battery_ramp_violation_kw",
+        "grid_exchange_ramp_violation_kw",
+        "battery_charge_bound_violation_kw",
+        "battery_discharge_bound_violation_kw",
+        "battery_mutual_exclusion_violation_kw",
         "soc",
     ]
     with open(path, "w", newline="", encoding="utf-8-sig") as file:
@@ -154,22 +189,39 @@ def write_dispatch_csv(path, solution):
         writer.writeheader()
         for hour in range(len(dispatch["load_kw"])):
             grid_kw = dispatch["grid_kw"][hour]
-            charge_kw = max(-dispatch["battery_kw"][hour], 0.0)
+            charge_kw = dispatch["battery_charge_kw"][hour]
+            discharge_kw = dispatch["battery_discharge_kw"][hour]
             sell_kw = max(-grid_kw, 0.0)
             violation_kw = max(sell_kw + charge_kw - dispatch["renewable_surplus_kw"][hour], 0.0)
             writer.writerow(
                 {
                     "hour": hour + 1,
+                    "time_h": f"{dispatch['time_h'][hour]:.6f}",
                     "load_kw": f"{dispatch['load_kw'][hour]:.6f}",
+                    "wind_available_kw": f"{dispatch['wind_available_kw'][hour]:.6f}",
+                    "pv_available_kw": f"{dispatch['pv_available_kw'][hour]:.6f}",
                     "pv_kw": f"{dispatch['pv_kw'][hour]:.6f}",
                     "wt_kw": f"{dispatch['wt_kw'][hour]:.6f}",
+                    "wind_curtail_kw": f"{dispatch['wind_curtail_kw'][hour]:.6f}",
+                    "pv_curtail_kw": f"{dispatch['pv_curtail_kw'][hour]:.6f}",
+                    "total_curtail_kw": f"{dispatch['total_curtail_kw'][hour]:.6f}",
                     "diesel_kw": f"{dispatch['diesel_kw'][hour]:.6f}",
                     "battery_kw": f"{dispatch['battery_kw'][hour]:.6f}",
+                    "battery_discharge_kw": f"{discharge_kw:.6f}",
+                    "battery_charge_kw": f"{charge_kw:.6f}",
+                    "battery_charge_state": f"{dispatch['battery_charge_state'][hour]:.0f}",
                     "grid_kw": f"{grid_kw:.6f}",
                     "grid_buy_kw": f"{max(grid_kw, 0.0):.6f}",
                     "grid_sell_kw": f"{max(-grid_kw, 0.0):.6f}",
                     "renewable_surplus_kw": f"{dispatch['renewable_surplus_kw'][hour]:.6f}",
                     "surplus_allocation_violation_kw": f"{violation_kw:.6f}",
+                    "diesel_ramp_up_violation_kw": f"{dispatch['diesel_ramp_up_violation_kw'][hour]:.6f}",
+                    "diesel_ramp_down_violation_kw": f"{dispatch['diesel_ramp_down_violation_kw'][hour]:.6f}",
+                    "battery_ramp_violation_kw": f"{dispatch['battery_ramp_violation_kw'][hour]:.6f}",
+                    "grid_exchange_ramp_violation_kw": f"{dispatch['grid_exchange_ramp_violation_kw'][hour]:.6f}",
+                    "battery_charge_bound_violation_kw": f"{dispatch['battery_charge_bound_violation_kw'][hour]:.6f}",
+                    "battery_discharge_bound_violation_kw": f"{dispatch['battery_discharge_bound_violation_kw'][hour]:.6f}",
+                    "battery_mutual_exclusion_violation_kw": f"{dispatch['battery_mutual_exclusion_violation_kw'][hour]:.6f}",
                     "soc": f"{dispatch['soc'][hour + 1]:.6f}",
                 }
             )
@@ -179,18 +231,32 @@ def write_power_curves_csv(path, solution):
     dispatch = evaluate_dispatch(solution)
     fieldnames = [
         "hour",
+        "time_h",
         "load_kw",
+        "wind_available_kw",
+        "pv_available_kw",
         "wind_kw",
         "pv_kw",
+        "wind_curtail_kw",
+        "pv_curtail_kw",
+        "total_curtail_kw",
         "diesel_kw",
         "battery_kw",
         "battery_discharge_kw",
         "battery_charge_kw",
+        "battery_charge_state",
         "grid_net_kw",
         "grid_buy_kw",
         "grid_sell_kw",
         "renewable_surplus_kw",
         "surplus_allocation_violation_kw",
+        "diesel_ramp_up_violation_kw",
+        "diesel_ramp_down_violation_kw",
+        "battery_ramp_violation_kw",
+        "grid_exchange_ramp_violation_kw",
+        "battery_charge_bound_violation_kw",
+        "battery_discharge_bound_violation_kw",
+        "battery_mutual_exclusion_violation_kw",
         "total_generation_kw",
         "total_supply_kw",
     ]
@@ -200,8 +266,8 @@ def write_power_curves_csv(path, solution):
         for hour in range(len(dispatch["load_kw"])):
             battery_kw = dispatch["battery_kw"][hour]
             grid_kw = dispatch["grid_kw"][hour]
-            battery_discharge_kw = max(battery_kw, 0.0)
-            battery_charge_kw = max(-battery_kw, 0.0)
+            battery_discharge_kw = dispatch["battery_discharge_kw"][hour]
+            battery_charge_kw = dispatch["battery_charge_kw"][hour]
             grid_buy_kw = max(grid_kw, 0.0)
             grid_sell_kw = max(-grid_kw, 0.0)
             renewable_surplus_kw = dispatch["renewable_surplus_kw"][hour]
@@ -211,18 +277,32 @@ def write_power_curves_csv(path, solution):
             writer.writerow(
                 {
                     "hour": hour + 1,
+                    "time_h": f"{dispatch['time_h'][hour]:.6f}",
                     "load_kw": f"{dispatch['load_kw'][hour]:.6f}",
+                    "wind_available_kw": f"{dispatch['wind_available_kw'][hour]:.6f}",
+                    "pv_available_kw": f"{dispatch['pv_available_kw'][hour]:.6f}",
                     "wind_kw": f"{dispatch['wt_kw'][hour]:.6f}",
                     "pv_kw": f"{dispatch['pv_kw'][hour]:.6f}",
+                    "wind_curtail_kw": f"{dispatch['wind_curtail_kw'][hour]:.6f}",
+                    "pv_curtail_kw": f"{dispatch['pv_curtail_kw'][hour]:.6f}",
+                    "total_curtail_kw": f"{dispatch['total_curtail_kw'][hour]:.6f}",
                     "diesel_kw": f"{dispatch['diesel_kw'][hour]:.6f}",
                     "battery_kw": f"{battery_kw:.6f}",
                     "battery_discharge_kw": f"{battery_discharge_kw:.6f}",
                     "battery_charge_kw": f"{battery_charge_kw:.6f}",
+                    "battery_charge_state": f"{dispatch['battery_charge_state'][hour]:.0f}",
                     "grid_net_kw": f"{grid_kw:.6f}",
                     "grid_buy_kw": f"{grid_buy_kw:.6f}",
                     "grid_sell_kw": f"{grid_sell_kw:.6f}",
                     "renewable_surplus_kw": f"{renewable_surplus_kw:.6f}",
                     "surplus_allocation_violation_kw": f"{violation_kw:.6f}",
+                    "diesel_ramp_up_violation_kw": f"{dispatch['diesel_ramp_up_violation_kw'][hour]:.6f}",
+                    "diesel_ramp_down_violation_kw": f"{dispatch['diesel_ramp_down_violation_kw'][hour]:.6f}",
+                    "battery_ramp_violation_kw": f"{dispatch['battery_ramp_violation_kw'][hour]:.6f}",
+                    "grid_exchange_ramp_violation_kw": f"{dispatch['grid_exchange_ramp_violation_kw'][hour]:.6f}",
+                    "battery_charge_bound_violation_kw": f"{dispatch['battery_charge_bound_violation_kw'][hour]:.6f}",
+                    "battery_discharge_bound_violation_kw": f"{dispatch['battery_discharge_bound_violation_kw'][hour]:.6f}",
+                    "battery_mutual_exclusion_violation_kw": f"{dispatch['battery_mutual_exclusion_violation_kw'][hour]:.6f}",
                     "total_generation_kw": f"{total_generation_kw:.6f}",
                     "total_supply_kw": f"{total_supply_kw:.6f}",
                 }
@@ -233,7 +313,9 @@ def write_soc_curve_csv(path, solution):
     dispatch = evaluate_dispatch(solution)
     fieldnames = [
         "hour",
+        "time_h",
         "battery_kw",
+        "battery_charge_state",
         "energy_start_kwh",
         "energy_end_kwh",
         "soc_start",
@@ -246,7 +328,9 @@ def write_soc_curve_csv(path, solution):
             writer.writerow(
                 {
                     "hour": hour + 1,
+                    "time_h": f"{dispatch['time_h'][hour]:.6f}",
                     "battery_kw": f"{dispatch['battery_kw'][hour]:.6f}",
+                    "battery_charge_state": f"{dispatch['battery_charge_state'][hour]:.0f}",
                     "energy_start_kwh": f"{dispatch['energy_kwh'][hour]:.6f}",
                     "energy_end_kwh": f"{dispatch['energy_kwh'][hour + 1]:.6f}",
                     "soc_start": f"{dispatch['soc'][hour]:.6f}",
@@ -330,7 +414,7 @@ def write_average_convergence_history_csv(path, run_results):
             )
 
 
-def plot_pareto(path, selected_solutions, selected_objectives, reference_solutions=None):
+def plot_pareto(path, selected_solutions, selected_objectives, reference_solutions=None, algorithm_name="MOIABC"):
     selected_raw = raw_cost_objectives(selected_solutions)
 
     plt.figure(figsize=(7, 5.5))
@@ -341,9 +425,9 @@ def plot_pareto(path, selected_solutions, selected_objectives, reference_solutio
             reference_raw[:, 1],
             s=18,
             alpha=0.35,
-            label="Empirical reference front",
+            label="经验参考前沿",
         )
-    plt.scatter(selected_raw[:, 0], selected_raw[:, 1], s=30, alpha=0.85, label="Selected MOIABC archive")
+    plt.scatter(selected_raw[:, 0], selected_raw[:, 1], s=30, alpha=0.85, label=f"{algorithm_name} 外部档案")
 
     compromise_index, _ = select_compromise_index(selected_objectives)
     plt.scatter(
@@ -351,48 +435,119 @@ def plot_pareto(path, selected_solutions, selected_objectives, reference_solutio
         selected_raw[compromise_index, 1],
         s=90,
         marker="*",
-        label="Compromise solution",
+        label="折中方案",
     )
-    plt.xlabel("Economic cost")
-    plt.ylabel("Environment cost")
-    plt.title("MOIABC Pareto front for microgrid dispatch")
+    plt.xlabel("经济成本 / 元")
+    plt.ylabel("环境成本 / 元")
     plt.grid(True, linestyle="--", alpha=0.35)
-    plt.legend()
+    plt.legend(fontsize=LEGEND_FONT_SIZE)
     plt.tight_layout()
     plt.savefig(path, dpi=180)
     plt.close()
 
 
-def plot_history(path, history):
+def plot_history(path, history, algorithm_name="MOIABC"):
     plt.figure(figsize=(10, 5))
     plt.plot(np.arange(len(history)), history, linewidth=1.6)
-    plt.xlabel("Iteration")
-    plt.ylabel("Best objective sum")
-    plt.title("MOIABC convergence curve")
+    plt.xlabel("迭代次数 / 次")
+    plt.ylabel("最优目标和")
     plt.grid(True, linestyle="--", alpha=0.35)
     plt.tight_layout()
     plt.savefig(path, dpi=180)
     plt.close()
 
 
-def run_once(run_index):
+def plot_algorithm_pareto_comparison(path, algorithm_outputs, reference_solutions):
+    plt.figure(figsize=(8, 6))
+    if reference_solutions is not None and len(reference_solutions) > 0:
+        reference_raw = raw_cost_objectives(reference_solutions)
+        plt.scatter(
+            reference_raw[:, 0],
+            reference_raw[:, 1],
+            s=16,
+            c="#9aa1a8",
+            alpha=0.28,
+            label="经验参考前沿",
+        )
+
+    markers = {"MOIABC": "o", "MOABC": "s"}
+    colors = {"MOIABC": "#d66b5f", "MOABC": "#4e8fc7"}
+    for algorithm_name, output in algorithm_outputs.items():
+        raw_objectives = raw_cost_objectives(output["selected_solutions"])
+        plt.scatter(
+            raw_objectives[:, 0],
+            raw_objectives[:, 1],
+            s=28,
+            alpha=0.82,
+            marker=markers.get(algorithm_name, "o"),
+            color=colors.get(algorithm_name),
+            label=f"{algorithm_name} 外部档案",
+        )
+        compromise_index = output["compromise_index"]
+        plt.scatter(
+            raw_objectives[compromise_index, 0],
+            raw_objectives[compromise_index, 1],
+            s=95,
+            marker="*",
+            color=colors.get(algorithm_name),
+            edgecolor="#222222",
+            linewidth=0.5,
+            label=f"{algorithm_name} 折中方案",
+        )
+
+    plt.xlabel("经济成本 / 元")
+    plt.ylabel("环境成本 / 元")
+    plt.grid(True, linestyle="--", alpha=0.35)
+    plt.legend(fontsize=LEGEND_FONT_SIZE)
+    plt.tight_layout()
+    plt.savefig(path, dpi=180)
+    plt.close()
+
+
+def plot_algorithm_convergence_comparison(path, algorithm_run_results):
+    plt.figure(figsize=(10, 6))
+    colors = {"MOIABC": "#d66b5f", "MOABC": "#4e8fc7"}
+    for algorithm_name, run_results in algorithm_run_results.items():
+        histories = np.asarray([item["history"] for item in run_results], dtype=float)
+        iterations = np.arange(histories.shape[1])
+        mean_values = np.mean(histories, axis=0)
+        min_values = np.min(histories, axis=0)
+        max_values = np.max(histories, axis=0)
+        color = colors.get(algorithm_name)
+        plt.plot(iterations, mean_values, linewidth=1.8, color=color, label=f"{algorithm_name} 平均值")
+        plt.fill_between(iterations, min_values, max_values, color=color, alpha=0.14)
+
+    plt.xlabel("迭代次数 / 次")
+    plt.ylabel("最优目标和")
+    plt.grid(True, linestyle="--", alpha=0.35)
+    plt.legend(fontsize=LEGEND_FONT_SIZE)
+    plt.tight_layout()
+    plt.savefig(path, dpi=180)
+    plt.close()
+
+
+def run_once(task):
+    algorithm_name, run_index = task
+    if algorithm_name not in ALGORITHM_CONFIGS:
+        valid_names = ", ".join(ALGORITHM_CONFIGS)
+        raise ValueError(f"Unknown algorithm: {algorithm_name}. Valid algorithms: {valid_names}")
+
+    config = ALGORITHM_CONFIGS[algorithm_name]
     seed = SEED_BASE + run_index
     start_time = time.perf_counter()
-    archive_solutions, archive_objectives, history, used_seed = MOIABC.multi_objective_iabc(
+    archive_solutions, archive_objectives, history, used_seed = config["runner"](
         objective_function=objective_function,
         bounds=BOUNDS,
         bee=BEE,
         max_iter=MAX_ITER,
         limit=LIMIT,
         archive_size=ARCHIVE_SIZE,
-        tournament_size=TOURNAMENT_SIZE,
-        elite_rate=ELITE_RATE,
-        elimination_rate=ELIMINATION_RATE,
-        archive_guidance_rate=ARCHIVE_GUIDANCE_RATE,
         seed=seed,
+        **config["kwargs"],
     )
     elapsed_seconds = time.perf_counter() - start_time
     return {
+        "algorithm": algorithm_name,
         "run": run_index + 1,
         "seed": used_seed,
         "archive_solutions": archive_solutions,
@@ -448,43 +603,30 @@ def select_best_run(metric_rows):
     return int(order[0])
 
 
-def run_all():
+def run_all(algorithm_name):
     worker_count = min(PARALLEL_WORKERS, RUN_TIMES)
+    tasks = [(algorithm_name, run_index) for run_index in range(RUN_TIMES)]
     if worker_count <= 1:
         run_results = []
-        for run_index in range(RUN_TIMES):
-            run_results.append(run_once(run_index))
-            print_progress(run_index + 1, RUN_TIMES, prefix="Progress")
+        for index, task in enumerate(tasks, start=1):
+            run_results.append(run_once(task))
+            print_progress(index, RUN_TIMES, prefix=f"{algorithm_name} Progress")
         print()
         return run_results
 
     run_results = []
     completed = 0
     with ProcessPoolExecutor(max_workers=worker_count) as executor:
-        futures = [executor.submit(run_once, run_index) for run_index in range(RUN_TIMES)]
+        futures = [executor.submit(run_once, task) for task in tasks]
         for future in as_completed(futures):
             run_results.append(future.result())
             completed += 1
-            print_progress(completed, RUN_TIMES, prefix="Progress")
+            print_progress(completed, RUN_TIMES, prefix=f"{algorithm_name} Progress")
     print()
     return sorted(run_results, key=lambda item: item["run"])
 
 
-def main():
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    if RUN_TIMES <= 0:
-        raise ValueError("APP_RUN_TIMES must be greater than 0.")
-    if PARALLEL_WORKERS <= 0:
-        raise ValueError("APP_WORKERS must be greater than 0.")
-
-    print("=" * 80)
-    print("MOIABC microgrid dispatch configuration")
-    print(f"Runs: {RUN_TIMES}, seed_base: {SEED_BASE}, bee: {BEE}, max_iter: {MAX_ITER}, archive_size: {ARCHIVE_SIZE}")
-    print(f"Parallel workers: {min(PARALLEL_WORKERS, RUN_TIMES)}")
-
-    run_results = run_all()
-
-    reference_solutions, reference_objectives, all_objectives = build_empirical_reference_front(run_results)
+def build_algorithm_output(algorithm_name, run_results, reference_solutions, reference_objectives, all_objectives):
     metric_rows = calculate_run_metrics(run_results, reference_objectives, all_objectives)
     metrics_summary = summarize_metrics(metric_rows)
     best_run_position = select_best_run(metric_rows)
@@ -496,16 +638,42 @@ def main():
     compromise_index, ideal_distances = select_compromise_index(selected_objectives)
     compromise_dispatch = evaluate_dispatch(selected_solutions[compromise_index])
     raw_objectives = raw_cost_objectives(selected_solutions)
+    total_available_renewable_kwh = float(
+        np.sum(compromise_dispatch["wind_available_kw"] + compromise_dispatch["pv_available_kw"])
+        * PARAMS.time_step_hours
+    )
+    total_curtailment_kwh = float(np.sum(compromise_dispatch["total_curtail_kw"]) * PARAMS.time_step_hours)
+    renewable_utilization_rate = (
+        1.0 - total_curtailment_kwh / total_available_renewable_kwh
+        if total_available_renewable_kwh > 0.0
+        else 1.0
+    )
 
     summary = {
         "run_times": RUN_TIMES,
         "seed_base": SEED_BASE,
+        "algorithm": algorithm_name,
+        "dispatch_periods": len(compromise_dispatch["load_kw"]),
+        "decision_variables": len(BOUNDS),
+        "time_step_hours": PARAMS.time_step_hours,
         "selected_run": selected_result["run"],
         "selected_seed": selected_result["seed"],
         "bee": BEE,
         "max_iter": MAX_ITER,
         "limit": LIMIT,
         "configured_archive_size": ARCHIVE_SIZE,
+        "enable_curtailment": PARAMS.enable_curtailment,
+        "enable_extra_complexity": PARAMS.enable_extra_complexity,
+        "diesel_quadratic_fuel_cost": PARAMS.diesel_quadratic_fuel_cost,
+        "diesel_quadratic_emission_cost": PARAMS.diesel_quadratic_emission_cost,
+        "diesel_ramp_up_kw_per_h": PARAMS.diesel_ramp_up_kw_per_h,
+        "diesel_ramp_down_kw_per_h": PARAMS.diesel_ramp_down_kw_per_h,
+        "diesel_ramp_up_limit_kw_per_period": PARAMS.diesel_ramp_up_limit_kw,
+        "diesel_ramp_down_limit_kw_per_period": PARAMS.diesel_ramp_down_limit_kw,
+        "battery_ramp_kw_per_h": PARAMS.battery_ramp_kw_per_h,
+        "battery_ramp_limit_kw_per_period": PARAMS.battery_ramp_limit_kw,
+        "grid_exchange_ramp_kw_per_h": PARAMS.grid_exchange_ramp_kw_per_h,
+        "grid_exchange_ramp_limit_kw_per_period": PARAMS.grid_exchange_ramp_limit_kw,
         "selected_archive_size": int(len(selected_objectives)),
         "reference_front_size": int(len(reference_objectives)),
         "metrics": {
@@ -522,40 +690,224 @@ def main():
         "compromise_penalized_environment_objective": float(selected_objectives[compromise_index, 1]),
         "compromise_penalty": compromise_dispatch["penalty"],
         "compromise_final_soc": float(compromise_dispatch["soc"][-1]),
+        "compromise_wind_curtailment_kwh": float(np.sum(compromise_dispatch["wind_curtail_kw"]) * PARAMS.time_step_hours),
+        "compromise_pv_curtailment_kwh": float(np.sum(compromise_dispatch["pv_curtail_kw"]) * PARAMS.time_step_hours),
+        "compromise_total_curtailment_kwh": total_curtailment_kwh,
+        "compromise_renewable_utilization_rate": float(renewable_utilization_rate),
+    }
+    return {
+        "algorithm": algorithm_name,
+        "run_results": run_results,
+        "metric_rows": metric_rows,
+        "metrics_summary": metrics_summary,
+        "selected_result": selected_result,
+        "selected_metrics": selected_metrics,
+        "selected_solutions": selected_solutions,
+        "selected_objectives": selected_objectives,
+        "compromise_index": compromise_index,
+        "compromise_dispatch": compromise_dispatch,
+        "summary": summary,
     }
 
-    (OUTPUT_DIR / "multi_objective_summary.json").write_text(
-        json.dumps(summary, ensure_ascii=False, indent=2),
+
+def write_algorithm_outputs(output_dir, algorithm_output, reference_solutions, reference_objectives):
+    output_dir.mkdir(parents=True, exist_ok=True)
+    algorithm_name = algorithm_output["algorithm"]
+    selected_result = algorithm_output["selected_result"]
+    selected_solutions = algorithm_output["selected_solutions"]
+    selected_objectives = algorithm_output["selected_objectives"]
+    compromise_index = algorithm_output["compromise_index"]
+
+    (output_dir / "multi_objective_summary.json").write_text(
+        json.dumps(algorithm_output["summary"], ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    write_metrics_csv(OUTPUT_DIR / "multi_objective_metrics.csv", metric_rows)
-    write_metrics_summary_csv(OUTPUT_DIR / "multi_objective_metrics_summary.csv", metrics_summary)
-    write_convergence_history_csv(OUTPUT_DIR / "multi_objective_convergence_history.csv", run_results)
-    write_average_convergence_history_csv(OUTPUT_DIR / "multi_objective_average_convergence_history.csv", run_results)
-    write_pareto_csv(OUTPUT_DIR / "multi_objective_pareto.csv", selected_solutions, selected_objectives)
-    write_pareto_csv(OUTPUT_DIR / "multi_objective_reference_pareto.csv", reference_solutions, reference_objectives)
-    write_dispatch_csv(OUTPUT_DIR / "multi_objective_compromise_dispatch.csv", selected_solutions[compromise_index])
-    write_power_curves_csv(OUTPUT_DIR / "compromise_power_curves.csv", selected_solutions[compromise_index])
-    write_soc_curve_csv(OUTPUT_DIR / "compromise_soc_curve.csv", selected_solutions[compromise_index])
+    write_metrics_csv(output_dir / "multi_objective_metrics.csv", algorithm_output["metric_rows"])
+    write_metrics_summary_csv(output_dir / "multi_objective_metrics_summary.csv", algorithm_output["metrics_summary"])
+    write_convergence_history_csv(output_dir / "multi_objective_convergence_history.csv", algorithm_output["run_results"])
+    write_average_convergence_history_csv(output_dir / "multi_objective_average_convergence_history.csv", algorithm_output["run_results"])
+    write_pareto_csv(output_dir / "multi_objective_pareto.csv", selected_solutions, selected_objectives)
+    write_pareto_csv(output_dir / "multi_objective_reference_pareto.csv", reference_solutions, reference_objectives)
+    write_dispatch_csv(output_dir / "multi_objective_compromise_dispatch.csv", selected_solutions[compromise_index])
+    write_power_curves_csv(output_dir / "compromise_power_curves.csv", selected_solutions[compromise_index])
+    write_soc_curve_csv(output_dir / "compromise_soc_curve.csv", selected_solutions[compromise_index])
 
     if SAVE_PLOTS:
-        plot_pareto(OUTPUT_DIR / "multi_objective_pareto.png", selected_solutions, selected_objectives, reference_solutions)
-        plot_history(OUTPUT_DIR / "multi_objective_history.png", selected_result["history"])
+        plot_pareto(
+            output_dir / "multi_objective_pareto.png",
+            selected_solutions,
+            selected_objectives,
+            reference_solutions,
+            algorithm_name=algorithm_name,
+        )
+        plot_history(output_dir / "multi_objective_history.png", selected_result["history"], algorithm_name=algorithm_name)
+
+
+def write_algorithm_comparison_csv(path, algorithm_outputs):
+    fieldnames = [
+        "algorithm",
+        "selected_run",
+        "selected_seed",
+        "selected_archive_size",
+        "reference_front_size",
+        "IGD",
+        "IGD+",
+        "HV",
+        "best_sum",
+        "spacing",
+        "mean_IGD",
+        "mean_IGD+",
+        "mean_HV",
+        "mean_best_sum",
+        "mean_spacing",
+        "compromise_economic_cost",
+        "compromise_environment_cost",
+        "compromise_penalty",
+        "compromise_final_soc",
+        "compromise_total_curtailment_kwh",
+        "compromise_renewable_utilization_rate",
+    ]
+    with open(path, "w", newline="", encoding="utf-8-sig") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        for algorithm_name, output in algorithm_outputs.items():
+            selected_metrics = output["selected_metrics"]
+            summary = output["summary"]
+            metric_summary = output["metrics_summary"]
+            writer.writerow(
+                {
+                    "algorithm": algorithm_name,
+                    "selected_run": summary["selected_run"],
+                    "selected_seed": summary["selected_seed"],
+                    "selected_archive_size": summary["selected_archive_size"],
+                    "reference_front_size": summary["reference_front_size"],
+                    "IGD": format_float(selected_metrics["IGD"]),
+                    "IGD+": format_float(selected_metrics["IGD+"]),
+                    "HV": format_float(selected_metrics["HV"]),
+                    "best_sum": format_float(selected_metrics["best_sum"]),
+                    "spacing": format_float(selected_metrics["spacing"]),
+                    "mean_IGD": format_float(metric_summary["mean_IGD"]),
+                    "mean_IGD+": format_float(metric_summary["mean_IGD+"]),
+                    "mean_HV": format_float(metric_summary["mean_HV"]),
+                    "mean_best_sum": format_float(metric_summary["mean_best_sum"]),
+                    "mean_spacing": format_float(metric_summary["mean_spacing"]),
+                    "compromise_economic_cost": format_float(summary["compromise_economic_cost"]),
+                    "compromise_environment_cost": format_float(summary["compromise_environment_cost"]),
+                    "compromise_penalty": format_float(summary["compromise_penalty"]),
+                    "compromise_final_soc": format_float(summary["compromise_final_soc"]),
+                    "compromise_total_curtailment_kwh": format_float(summary["compromise_total_curtailment_kwh"]),
+                    "compromise_renewable_utilization_rate": format_float(summary["compromise_renewable_utilization_rate"]),
+                }
+            )
+
+
+def select_primary_algorithm(algorithm_names):
+    return "MOIABC" if "MOIABC" in algorithm_names else algorithm_names[0]
+
+
+def main():
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    if RUN_TIMES <= 0:
+        raise ValueError("APP_RUN_TIMES must be greater than 0.")
+    if PARALLEL_WORKERS <= 0:
+        raise ValueError("APP_WORKERS must be greater than 0.")
+
+    algorithm_names = []
+    for algorithm_name in ENABLED_ALGORITHMS:
+        if algorithm_name not in ALGORITHM_CONFIGS:
+            valid_names = ", ".join(ALGORITHM_CONFIGS)
+            raise ValueError(f"Unknown APP_ALGORITHMS item: {algorithm_name}. Valid algorithms: {valid_names}")
+        if algorithm_name not in algorithm_names:
+            algorithm_names.append(algorithm_name)
+    if not algorithm_names:
+        raise ValueError("APP_ALGORITHMS must contain at least one algorithm.")
+
+    print("=" * 80)
+    print("Multi-objective microgrid dispatch configuration")
+    print(f"Algorithms: {', '.join(algorithm_names)}")
+    print(f"Runs per algorithm: {RUN_TIMES}, seed_base: {SEED_BASE}, bee: {BEE}, max_iter: {MAX_ITER}, archive_size: {ARCHIVE_SIZE}")
+    print(f"Dispatch periods: {len(BOUNDS) // (4 if PARAMS.enable_curtailment else 2)}, time_step: {PARAMS.time_step_hours:g} h")
+    print(f"Decision variables: {len(BOUNDS)}")
+    print(f"Curtailment enabled: {PARAMS.enable_curtailment}")
+    print(f"Diesel ramp limit: +{PARAMS.diesel_ramp_up_limit_kw:g}/-{PARAMS.diesel_ramp_down_limit_kw:g} kW per period")
+    print(f"Extra complexity enabled: {PARAMS.enable_extra_complexity}")
+    if PARAMS.enable_extra_complexity:
+        print(f"Battery ramp limit: {PARAMS.battery_ramp_limit_kw:g} kW per period")
+        print(f"Grid exchange ramp limit: {PARAMS.grid_exchange_ramp_limit_kw:g} kW per period")
+        print(f"Diesel quadratic cost coefficients: fuel={PARAMS.diesel_quadratic_fuel_cost:g}, emission={PARAMS.diesel_quadratic_emission_cost:g}")
+    print(f"Parallel workers: {min(PARALLEL_WORKERS, RUN_TIMES)}")
+
+    algorithm_run_results = {}
+    for algorithm_name in algorithm_names:
+        print("-" * 80)
+        print(f"Running {algorithm_name}")
+        algorithm_run_results[algorithm_name] = run_all(algorithm_name)
+
+    all_run_results = [item for run_results in algorithm_run_results.values() for item in run_results]
+    reference_solutions, reference_objectives, all_objectives = build_empirical_reference_front(all_run_results)
+    algorithm_outputs = {
+        algorithm_name: build_algorithm_output(
+            algorithm_name,
+            run_results,
+            reference_solutions,
+            reference_objectives,
+            all_objectives,
+        )
+        for algorithm_name, run_results in algorithm_run_results.items()
+    }
+
+    for algorithm_name, output in algorithm_outputs.items():
+        write_algorithm_outputs(OUTPUT_DIR / algorithm_name, output, reference_solutions, reference_objectives)
+
+    primary_algorithm = select_primary_algorithm(algorithm_names)
+    write_algorithm_outputs(OUTPUT_DIR, algorithm_outputs[primary_algorithm], reference_solutions, reference_objectives)
+    write_algorithm_comparison_csv(OUTPUT_DIR / "microgrid_algorithm_comparison.csv", algorithm_outputs)
+    (OUTPUT_DIR / "microgrid_algorithm_comparison_summary.json").write_text(
+        json.dumps(
+            {
+                "algorithms": algorithm_names,
+                "primary_algorithm": primary_algorithm,
+                "run_times_per_algorithm": RUN_TIMES,
+                "seed_base": SEED_BASE,
+                "reference_front_size": int(len(reference_objectives)),
+                "summaries": {name: output["summary"] for name, output in algorithm_outputs.items()},
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    if SAVE_PLOTS:
+        plot_algorithm_pareto_comparison(OUTPUT_DIR / "algorithm_pareto_comparison.png", algorithm_outputs, reference_solutions)
+        plot_algorithm_convergence_comparison(
+            OUTPUT_DIR / "algorithm_average_convergence_comparison.png",
+            algorithm_run_results,
+        )
 
     print("=" * 80)
     print("Multi-objective microgrid application case finished")
     print(f"Results: {OUTPUT_DIR}")
-    print(f"Selected run: {selected_result['run']}, seed: {selected_result['seed']}")
-    print(f"Selected archive size: {len(selected_objectives)}")
+    print(f"Primary algorithm files at root: {primary_algorithm}")
     print(f"Reference front size: {len(reference_objectives)}")
-    print(f"IGD: {selected_metrics['IGD']:.6e}")
-    print(f"IGD+: {selected_metrics['IGD+']:.6e}")
-    print(f"HV: {selected_metrics['HV']:.6e}")
-    print(f"best_sum: {selected_metrics['best_sum']:.6e}")
-    print(f"spacing: {selected_metrics['spacing']:.6e}")
-    print(f"Compromise economic cost: {compromise_dispatch['economic_cost']:.6f}")
-    print(f"Compromise environment cost: {compromise_dispatch['environment_cost']:.6f}")
-    print(f"Compromise penalty: {compromise_dispatch['penalty']:.6f}")
+    for algorithm_name, output in algorithm_outputs.items():
+        selected_result = output["selected_result"]
+        selected_metrics = output["selected_metrics"]
+        compromise_dispatch = output["compromise_dispatch"]
+        print("-" * 80)
+        print(f"Algorithm: {algorithm_name}")
+        print(f"Selected run: {selected_result['run']}, seed: {selected_result['seed']}")
+        print(f"Selected archive size: {len(output['selected_objectives'])}")
+        print(f"IGD: {selected_metrics['IGD']:.6e}")
+        print(f"IGD+: {selected_metrics['IGD+']:.6e}")
+        print(f"HV: {selected_metrics['HV']:.6e}")
+        print(f"best_sum: {selected_metrics['best_sum']:.6e}")
+        print(f"spacing: {selected_metrics['spacing']:.6e}")
+        print(f"Compromise economic cost: {compromise_dispatch['economic_cost']:.6f}")
+        print(f"Compromise environment cost: {compromise_dispatch['environment_cost']:.6f}")
+        print(f"Compromise penalty: {compromise_dispatch['penalty']:.6f}")
+        print(f"Compromise total curtailment: {output['summary']['compromise_total_curtailment_kwh']:.6f}")
+        print(f"Compromise renewable utilization rate: {output['summary']['compromise_renewable_utilization_rate']:.6f}")
 
 
 if __name__ == "__main__":

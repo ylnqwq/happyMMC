@@ -58,12 +58,14 @@ IABC/
     |-- mo_utils.py
     |-- algorithms/
     |   |-- MOABC.py
+    |   |-- CMMODE.py
     |   |-- MODE.py
     |   |-- MOEAD.py
     |   |-- MOIABC.py
     |   |-- MOPSO.py
+    |   |-- Yang_IGWO.py
     |   |-- Zhou_IMOABC.py
-    |   `-- Zhao_IMOABC.py
+    |   `-- __init__.py
     `-- application_point/
         |-- microgrid_dispatch_model.py
         |-- run_microgrid_dispatch.py
@@ -182,7 +184,8 @@ python single_objective\plot_single_objective_results.py --mode sensitivity --in
 - `MOEA/D`：基于分解的多目标进化算法
 - `MOPSO`：多目标粒子群算法
 - `Zhou-IMOABC`：Zhou 风格改进多目标人工蜂群算法
-- `Zhao-IMOABC`：Zhao 风格改进多目标人工蜂群算法
+- `Yang-IGWO`：杨慧娴改进灰狼优化算法
+- `CMMODE`：基于竞争机制的多策略多目标差分进化算法
 - `MOIABC`：本项目多目标改进人工蜂群算法
 
 ### 测试函数
@@ -222,7 +225,7 @@ EXPERIMENT_GROUPS = [
     {
         "name": "improved_algorithms",
         "output_dir": MODULE_DIR / "mo_comparison_results_improved_algorithms",
-        "algorithms": ["Zhou-IMOABC", "Zhao-IMOABC", "MOIABC"],
+        "algorithms": ["Zhou-IMOABC", "Yang-IGWO", "CMMODE", "MOIABC"],
     },
 ]
 

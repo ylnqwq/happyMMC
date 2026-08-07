@@ -19,7 +19,7 @@ if str(ROOT_DIR) not in sys.path:
 if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
-from multi_objective.algorithms import MOABC, MODE, MOEAD, MOIABC, MOPSO, Zhao_IMOABC, Zhou_IMOABC
+from multi_objective.algorithms import CMMODE, MOABC, MODE, MOEAD, MOIABC, MOPSO, Yang_IGWO, Zhou_IMOABC
 from multi_objective.mo_utils import calculate_hypervolume, non_dominated_mask, spacing_metric
 from multi_objective.multiobjective_benchmarks import CEC2009_UF_BENCHMARKS, CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
 from multi_objective.statistical_tests import (
@@ -42,7 +42,7 @@ from experiment_utils import (
 
 RUN_TIMES = env_int("MO_COMPARISON_RUN_TIMES", 30)
 SEED_BASE = env_int("MO_COMPARISON_SEED_BASE", 20260723)
-PARALLEL_WORKERS = env_int("MO_COMPARISON_WORKERS", 4)
+PARALLEL_WORKERS = env_int("MO_COMPARISON_WORKERS", 8)
 SAVE_ARCHIVE_POINTS = env_bool("MO_COMPARISON_SAVE_ARCHIVE_POINTS", True)
 SAVE_PLOTS = env_bool("MO_COMPARISON_SAVE_PLOTS", True)
 
@@ -69,7 +69,7 @@ IMPROVED_EXPERIMENT_GROUP = {
         MODULE_DIR / "mo_comparison_results_improved_algorithms",
         MODULE_DIR,
     ),
-    "algorithms": ["Zhou-IMOABC", "Zhao-IMOABC", "MOIABC"],
+    "algorithms": ["Zhou-IMOABC", "Yang-IGWO", "CMMODE", "MOIABC"],
 }
 EXPERIMENT_GROUPS = [
     STANDARD_EXPERIMENT_GROUP,
@@ -147,11 +147,21 @@ ALGORITHMS = [
         "params": COMMON_PARAMS,
     },
     {
-        "name": "Zhao-IMOABC",
-        "runner": Zhao_IMOABC.zhao_imoabc,
+        "name": "Yang-IGWO",
+        "runner": Yang_IGWO.yang_igwo,
         "params": {
             **COMMON_PARAMS,
-            "elimination_rate": 0.1,
+            "convergence_exponent": 1.0,
+        },
+    },
+    {
+        "name": "CMMODE",
+        "runner": CMMODE.cmmode,
+        "params": {
+            **COMMON_PARAMS,
+            "mutation_factor": 0.5,
+            "crossover_rate": 0.9,
+            "elite_search_rate": 0.5,
         },
     },
     {

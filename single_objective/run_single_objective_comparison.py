@@ -32,7 +32,7 @@ from experiment_utils import format_float, print_progress, save_rows_to_csv, sel
 RUN_TIMES = 1
 BOUNDS = [(-100, 100)] * 10
 OUTPUT_DIR = Path(__file__).resolve().parent / "comparison_results"
-PARALLEL_WORKERS = 4
+PARALLEL_WORKERS = 8
 SAVE_PLOTS = os.environ.get("SO_SAVE_PLOTS", "1") != "0"
 
 # 全局测试开关：

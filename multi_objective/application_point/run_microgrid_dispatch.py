@@ -38,6 +38,11 @@ from multi_objective.mo_utils import (
     non_dominated_mask,
     spacing_metric,
 )
+from multi_objective.application_point.plot_microgrid_results import (
+    plot_cost_breakdown,
+    plot_igd_igd_plus_comparison,
+    plot_power_dispatch,
+)
 
 
 OUTPUT_DIR = env_output_dir("APP_OUTPUT_DIR", MODULE_DIR / "results", MODULE_DIR)
@@ -337,6 +342,11 @@ def write_soc_curve_csv(path, solution):
                     "soc_end": f"{dispatch['soc'][hour + 1]:.6f}",
                 }
             )
+
+
+def read_numeric_csv(path):
+    with open(path, newline="", encoding="utf-8-sig") as file:
+        return [{key: float(value) for key, value in row.items()} for row in csv.DictReader(file)]
 
 
 def write_metrics_csv(path, metric_rows):
@@ -710,7 +720,7 @@ def build_algorithm_output(algorithm_name, run_results, reference_solutions, ref
     }
 
 
-def write_algorithm_outputs(output_dir, algorithm_output, reference_solutions, reference_objectives):
+def write_algorithm_outputs(output_dir, algorithm_output, reference_solutions, reference_objectives, save_algorithm_plots=True):
     output_dir.mkdir(parents=True, exist_ok=True)
     algorithm_name = algorithm_output["algorithm"]
     selected_result = algorithm_output["selected_result"]
@@ -732,15 +742,10 @@ def write_algorithm_outputs(output_dir, algorithm_output, reference_solutions, r
     write_power_curves_csv(output_dir / "compromise_power_curves.csv", selected_solutions[compromise_index])
     write_soc_curve_csv(output_dir / "compromise_soc_curve.csv", selected_solutions[compromise_index])
 
-    if SAVE_PLOTS:
-        plot_pareto(
-            output_dir / "multi_objective_pareto.png",
-            selected_solutions,
-            selected_objectives,
-            reference_solutions,
-            algorithm_name=algorithm_name,
-        )
-        plot_history(output_dir / "multi_objective_history.png", selected_result["history"], algorithm_name=algorithm_name)
+    if SAVE_PLOTS and save_algorithm_plots:
+        power_rows = read_numeric_csv(output_dir / "compromise_power_curves.csv")
+        plot_cost_breakdown(power_rows, output_dir / "compromise_cost_breakdown.png", algorithm_name=algorithm_name)
+        plot_power_dispatch(power_rows, output_dir / "compromise_power_dispatch.png", algorithm_name=algorithm_name)
 
 
 def write_algorithm_comparison_csv(path, algorithm_outputs):
@@ -805,8 +810,16 @@ def select_primary_algorithm(algorithm_names):
     return "MOIABC" if "MOIABC" in algorithm_names else algorithm_names[0]
 
 
+def clear_existing_png_files(output_dir):
+    if not output_dir.exists():
+        return
+    for path in output_dir.rglob("*.png"):
+        path.unlink()
+
+
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    clear_existing_png_files(OUTPUT_DIR)
     if RUN_TIMES <= 0:
         raise ValueError("APP_RUN_TIMES must be greater than 0.")
     if PARALLEL_WORKERS <= 0:
@@ -860,7 +873,13 @@ def main():
         write_algorithm_outputs(OUTPUT_DIR / algorithm_name, output, reference_solutions, reference_objectives)
 
     primary_algorithm = select_primary_algorithm(algorithm_names)
-    write_algorithm_outputs(OUTPUT_DIR, algorithm_outputs[primary_algorithm], reference_solutions, reference_objectives)
+    write_algorithm_outputs(
+        OUTPUT_DIR,
+        algorithm_outputs[primary_algorithm],
+        reference_solutions,
+        reference_objectives,
+        save_algorithm_plots=False,
+    )
     write_algorithm_comparison_csv(OUTPUT_DIR / "microgrid_algorithm_comparison.csv", algorithm_outputs)
     (OUTPUT_DIR / "microgrid_algorithm_comparison_summary.json").write_text(
         json.dumps(
@@ -883,6 +902,10 @@ def main():
         plot_algorithm_convergence_comparison(
             OUTPUT_DIR / "algorithm_average_convergence_comparison.png",
             algorithm_run_results,
+        )
+        plot_igd_igd_plus_comparison(
+            {name: output["metric_rows"] for name, output in algorithm_outputs.items()},
+            OUTPUT_DIR / "algorithm_igd_igd_plus_comparison.png",
         )
 
     print("=" * 80)

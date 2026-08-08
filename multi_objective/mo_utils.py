@@ -218,6 +218,112 @@ def igd_plus_metric(approximation_front, reference_front):
     return float(np.mean(distances))
 
 
+def nondominated_front_2d(objectives):
+    order = np.lexsort((objectives[:, 1], objectives[:, 0]))
+    sorted_points = objectives[order]
+    selected = []
+    best_second = np.inf
+    for point in sorted_points:
+        if point[1] < best_second - 1e-12:
+            selected.append(point)
+            best_second = point[1]
+    return np.asarray(selected, dtype=float)
+
+
+def select_reference_candidates(objectives, max_candidates):
+    if max_candidates <= 0 or len(objectives) <= max_candidates:
+        return objectives
+
+    selected = set(np.linspace(0, len(objectives) - 1, max_candidates, dtype=int).tolist())
+    edge_count = max(20, max_candidates // (objectives.shape[1] * 20))
+    for axis in range(objectives.shape[1]):
+        order = np.argsort(objectives[:, axis])
+        selected.update(order[:edge_count].tolist())
+        selected.update(order[-edge_count:].tolist())
+    indexes = np.fromiter(sorted(selected), dtype=int)
+    return objectives[indexes]
+
+
+def nondominated_front_3d(objectives):
+    order = np.lexsort((objectives[:, 2], objectives[:, 1], objectives[:, 0]))
+    front = np.empty((0, 3), dtype=float)
+
+    for point in objectives[order]:
+        if len(front) > 0:
+            dominated_by_front = np.any(np.all(front <= point, axis=1) & np.any(front < point, axis=1))
+            if dominated_by_front:
+                continue
+            dominated_front = np.all(point <= front, axis=1) & np.any(point < front, axis=1)
+            if np.any(dominated_front):
+                front = front[~dominated_front]
+        front = np.vstack([front, point])
+    return front
+
+
+def nondominated_front_fast(objectives, max_candidates=12000):
+    objectives = np.asarray(objectives, dtype=float)
+    if objectives.shape[1] == 2:
+        return nondominated_front_2d(objectives)
+    if objectives.shape[1] == 3:
+        candidates = select_reference_candidates(objectives, max_candidates)
+        return nondominated_front_3d(candidates)
+    return objectives[non_dominated_mask(objectives)]
+
+
+def normalize_objectives(objectives, ideal_point, nadir_point):
+    span = nadir_point - ideal_point
+    span = np.where(np.isclose(span, 0.0), 1.0, span)
+    return (objectives - ideal_point) / span
+
+
+def select_reference_points(reference_front, max_points):
+    if max_points <= 0 or len(reference_front) <= max_points:
+        return reference_front
+    indexes = np.linspace(0, len(reference_front) - 1, max_points).astype(int)
+    return reference_front[indexes]
+
+
+def mean_min_distance(approximation_front, reference_front, plus=False, chunk_size=256):
+    if len(approximation_front) == 0 or len(reference_front) == 0:
+        return np.inf
+
+    min_distances = []
+    for start in range(0, len(reference_front), chunk_size):
+        reference_chunk = reference_front[start : start + chunk_size]
+        diff = approximation_front[None, :, :] - reference_chunk[:, None, :]
+        if plus:
+            diff = np.maximum(diff, 0.0)
+        distances = np.linalg.norm(diff, axis=2)
+        min_distances.append(np.min(distances, axis=1))
+    return float(np.mean(np.concatenate(min_distances)))
+
+
+def attach_igd_metrics(grouped_results, reference_points=2000, reference_candidates=12000):
+    all_objectives = np.vstack(
+        [item["archive_objectives"] for results in grouped_results.values() for item in results]
+    )
+    _, unique_indexes = np.unique(all_objectives, axis=0, return_index=True)
+    all_objectives = all_objectives[np.sort(unique_indexes)]
+
+    reference_front = nondominated_front_fast(all_objectives, max_candidates=reference_candidates)
+    reference_front = reference_front[
+        np.lexsort(tuple(reference_front[:, index] for index in range(reference_front.shape[1] - 1, -1, -1)))
+    ]
+    used_reference_front = select_reference_points(reference_front, reference_points)
+
+    ideal_point = np.min(all_objectives, axis=0)
+    nadir_point = np.max(all_objectives, axis=0)
+    normalized_reference = normalize_objectives(used_reference_front, ideal_point, nadir_point)
+
+    for results in grouped_results.values():
+        for item in results:
+            normalized_objectives = normalize_objectives(item["archive_objectives"], ideal_point, nadir_point)
+            item["reference_front_size"] = len(reference_front)
+            item["used_reference_front_size"] = len(used_reference_front)
+            item["igd"] = mean_min_distance(normalized_objectives, normalized_reference)
+            item["igd_plus"] = mean_min_distance(normalized_objectives, normalized_reference, plus=True)
+
+
 def best_sum_history_value(archive_objectives):
     if len(archive_objectives) == 0:
         return np.inf

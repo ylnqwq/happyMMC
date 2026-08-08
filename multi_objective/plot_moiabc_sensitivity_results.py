@@ -724,6 +724,12 @@ def normalize_ablation_rows(rows):
         "mean_hypervolume",
         "std_hypervolume",
         "best_hypervolume",
+        "mean_igd",
+        "std_igd",
+        "best_igd",
+        "mean_igd_plus",
+        "std_igd_plus",
+        "best_igd_plus",
         "mean_time",
     }
     for row in rows:
@@ -1206,7 +1212,7 @@ def ablation_effect_rows(wilcoxon_rows, algorithms):
     rows = []
     variants = [algorithm for algorithm in algorithms if algorithm != "MOIABC"]
     for variant in variants:
-        for metric in ["hypervolume", "spacing", "best_sum"]:
+        for metric in ["hypervolume", "spacing", "best_sum", "igd", "igd_plus"]:
             metric_rows = [
                 row
                 for row in wilcoxon_rows
@@ -1269,7 +1275,9 @@ def try_write_csv(write_func, *args):
 
 
 def draw_ablation_effect_table(rows, output_path, show_title=True):
-    metrics = ["hypervolume", "spacing", "best_sum"]
+    metric_order = ["hypervolume", "spacing", "best_sum", "igd", "igd_plus"]
+    present_metrics = {row["metric"] for row in rows}
+    metrics = [metric for metric in metric_order if metric in present_metrics]
     variants = []
     for row in rows:
         if row["variant"] not in variants:
@@ -1331,12 +1339,16 @@ def draw_ablation_effect_table(rows, output_path, show_title=True):
             family=font_family,
         )
         for column_index, variant in enumerate(variants, start=1):
-            row = index[(metric, variant)]
-            text = (
-                f"{row['worse_count']}/{row['benchmark_count']}\n"
-                f"显著 {row['significant_worse_count']}，反向 {row['opposite_significant_count']}"
-            )
-            fontweight = "bold" if row["significant_worse_count"] > row["opposite_significant_count"] else "normal"
+            row = index.get((metric, variant))
+            if row is None:
+                text = "-"
+                fontweight = "normal"
+            else:
+                text = (
+                    f"{row['worse_count']}/{row['benchmark_count']}\n"
+                    f"显著 {row['significant_worse_count']}，反向 {row['opposite_significant_count']}"
+                )
+                fontweight = "bold" if row["significant_worse_count"] > row["opposite_significant_count"] else "normal"
             x = (x_positions[column_index] + x_positions[column_index + 1]) / 2
             ax.text(
                 x,
@@ -1383,7 +1395,7 @@ def draw_ablation_outputs(args):
             rank_rows = friedman_rank_rows(summary_rows, benchmark_ids, algorithms, metric)
             output_png = output_dir / f"moiabc_ablation_friedman_{suffix}_rank.png"
             output_csv = output_png.with_suffix(".csv")
-            draw_friedman_rank_bar(rank_rows, output_png, show_title=not args.no_title)
+            draw_friedman_rank_bar(rank_rows, output_png, show_title=False)
             write_friedman_rank_csv(rank_rows, output_csv)
             outputs.extend([output_png, output_csv])
             all_rank_rows.extend(rank_rows)
@@ -1401,7 +1413,7 @@ def draw_ablation_outputs(args):
                 algorithms,
                 metric,
                 output_png,
-                show_title=not args.no_title,
+                show_title=False,
                 show_note=not args.no_note,
                 cell_suffixes=cell_suffixes,
                 note_suffix="符号 +、=、- 分别表示 MOIABC 的性能优于、相近于或劣于对应消融变体。",
@@ -1413,7 +1425,7 @@ def draw_ablation_outputs(args):
         effect_rows = ablation_effect_rows(wilcoxon_rows, algorithms)
         output_png = output_dir / "moiabc_ablation_effect_summary_table.png"
         output_csv = output_png.with_suffix(".csv")
-        draw_ablation_effect_table(effect_rows, output_png, show_title=not args.no_title)
+        draw_ablation_effect_table(effect_rows, output_png, show_title=False)
         try_write_csv(write_ablation_effect_csv, effect_rows, output_csv)
         outputs.extend([output_png, output_csv])
 
@@ -1672,7 +1684,7 @@ def main():
             metric,
             args.top_k,
             output_png,
-            show_title=not args.no_title,
+            show_title=False,
             sort_by=args.sort_by,
         )
         print(output_png)
@@ -1707,7 +1719,7 @@ def main():
             metric_combinations,
             metric,
             output_png,
-            show_title=not args.no_title,
+            show_title=False,
             show_note=not args.no_note,
         )
         write_table_csv_paper(summary_rows, benchmark_ids, metric_combinations, metric, output_csv)

@@ -16,6 +16,7 @@ if str(MODULE_DIR) not in sys.path:
 
 from multi_objective.algorithms import MOABC, MOIABC
 from multi_objective.mo_utils import (
+    attach_igd_metrics,
     best_sum_history_value,
     calculate_hypervolume,
     spacing_metric,
@@ -44,11 +45,13 @@ from experiment_utils import (
 )
 
 
-RUN_TIMES = env_int("MOIABC_ABLATION_RUN_TIMES", 30)
+RUN_TIMES = env_int("MOIABC_ABLATION_RUN_TIMES", 1)
 SEED_BASE = env_int("MOIABC_ABLATION_SEED_BASE", 20260723)
 OUTPUT_DIR = env_output_dir("MOIABC_ABLATION_OUTPUT_DIR", MODULE_DIR / "moiabc_ablation_results", MODULE_DIR)
-PARALLEL_WORKERS = env_int("MOIABC_ABLATION_WORKERS", 8)
+PARALLEL_WORKERS = env_int("MOIABC_ABLATION_WORKERS", 10)
 SAVE_ARCHIVE_POINTS = env_bool("MOIABC_ABLATION_SAVE_ARCHIVE_POINTS", False)
+IGD_REFERENCE_POINTS = env_int("MOIABC_ABLATION_IGD_REFERENCE_POINTS", 2000)
+IGD_REFERENCE_CANDIDATES = env_int("MOIABC_ABLATION_IGD_REFERENCE_CANDIDATES", 12000)
 
 ENABLED_SUITES = env_csv("MOIABC_ABLATION_SUITES", ["ZDT", "CEC2009_UF", "CEC2020_MMO"])
 ENABLED_FUNCTION_IDS = env_csv("MOIABC_ABLATION_FUNCTION_IDS")
@@ -126,6 +129,8 @@ STATISTICAL_TEST_METRICS = [
     ("hypervolume", True),
     ("spacing", False),
     ("best_sum", False),
+    ("igd", False),
+    ("igd_plus", False),
 ]
 
 
@@ -287,11 +292,15 @@ def calculate_statistics(results):
     mean_sums = np.array([item["mean_sum"] for item in results], dtype=float)
     spacings = np.array([item["spacing"] for item in results], dtype=float)
     hypervolumes = np.array([item["hypervolume"] for item in results], dtype=float)
+    igd_values = np.array([item["igd"] for item in results], dtype=float)
+    igd_plus_values = np.array([item["igd_plus"] for item in results], dtype=float)
     times = np.array([item["time"] for item in results], dtype=float)
     ddof = 1 if len(results) > 1 else 0
 
     best_sum_index = int(np.argmin(best_sums))
     best_hv_index = int(np.argmax(hypervolumes))
+    best_igd_index = int(np.argmin(igd_values))
+    best_igd_plus_index = int(np.argmin(igd_plus_values))
     return {
         "run_times": len(results),
         "mean_archive_size": float(np.mean(archive_sizes)),
@@ -304,9 +313,17 @@ def calculate_statistics(results):
         "mean_hypervolume": float(np.mean(hypervolumes)),
         "std_hypervolume": float(np.std(hypervolumes, ddof=ddof)),
         "best_hypervolume": float(np.max(hypervolumes)),
+        "mean_igd": float(np.mean(igd_values)),
+        "std_igd": float(np.std(igd_values, ddof=ddof)),
+        "best_igd": float(np.min(igd_values)),
+        "mean_igd_plus": float(np.mean(igd_plus_values)),
+        "std_igd_plus": float(np.std(igd_plus_values, ddof=ddof)),
+        "best_igd_plus": float(np.min(igd_plus_values)),
         "mean_time": float(np.mean(times)),
         "best_sum_seed": results[best_sum_index]["seed"],
         "best_hypervolume_seed": results[best_hv_index]["seed"],
+        "best_igd_seed": results[best_igd_index]["seed"],
+        "best_igd_plus_seed": results[best_igd_plus_index]["seed"],
     }
 
 
@@ -330,6 +347,10 @@ def save_detail_results(filename, all_results):
                         "min_f3": format_float(item["min_f3"]),
                         "spacing": format_float(item["spacing"]),
                         "hypervolume": format_float(item["hypervolume"]),
+                        "reference_front_size": item["reference_front_size"],
+                        "used_reference_front_size": item["used_reference_front_size"],
+                        "igd": format_float(item["igd"]),
+                        "igd_plus": format_float(item["igd_plus"]),
                         "time": format_float(item["time"], precision=6),
                     }
                 )
@@ -393,6 +414,10 @@ def print_statistics(benchmark, grouped_results):
         print(f"mean_spacing: {stats['mean_spacing']:.16e}")
         print(f"mean_hypervolume: {stats['mean_hypervolume']:.16e}")
         print(f"std_hypervolume: {stats['std_hypervolume']:.16e}")
+        print(f"mean_igd: {stats['mean_igd']:.16e}")
+        print(f"std_igd: {stats['std_igd']:.16e}")
+        print(f"mean_igd_plus: {stats['mean_igd_plus']:.16e}")
+        print(f"std_igd_plus: {stats['std_igd_plus']:.16e}")
         print(f"mean_time: {stats['mean_time']:.6f}s")
 
 
@@ -429,6 +454,11 @@ def run_benchmark(benchmark, variants, seeds):
     for results in grouped_results.values():
         results.sort(key=lambda item: item["run_index"])
 
+    attach_igd_metrics(
+        grouped_results,
+        reference_points=IGD_REFERENCE_POINTS,
+        reference_candidates=IGD_REFERENCE_CANDIDATES,
+    )
     print_statistics(benchmark, grouped_results)
     return grouped_results
 
@@ -446,6 +476,8 @@ def print_run_configuration(benchmarks, variants):
     print(f"Seed base: {SEED_BASE}")
     print(f"Parallel workers: {PARALLEL_WORKERS}")
     print(f"Save archive points: {'yes' if SAVE_ARCHIVE_POINTS else 'no'}")
+    print(f"IGD reference points: {IGD_REFERENCE_POINTS if IGD_REFERENCE_POINTS > 0 else 'all'}")
+    print(f"IGD reference candidates: {IGD_REFERENCE_CANDIDATES if IGD_REFERENCE_CANDIDATES > 0 else 'all'}")
     print(f"Total runs: {total_runs}")
     print(
         "Params: "

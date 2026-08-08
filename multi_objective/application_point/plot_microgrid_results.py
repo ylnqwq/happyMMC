@@ -503,44 +503,36 @@ def plot_result_set(input_dir, output_dir, algorithm_name=None):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     power_rows = read_csv_rows(input_dir / "compromise_power_curves.csv")
-    soc_rows = read_csv_rows(input_dir / "compromise_soc_curve.csv")
-    convergence_rows = read_csv_rows(input_dir / "multi_objective_average_convergence_history.csv")
 
     plot_power_dispatch(power_rows, output_dir / "compromise_power_dispatch.png", algorithm_name=algorithm_name)
-    plot_soc_curve(soc_rows, output_dir / "compromise_soc_curve.png", algorithm_name=algorithm_name)
-    plot_average_convergence(
-        convergence_rows,
-        output_dir / "multi_objective_average_convergence.png",
-        algorithm_name=algorithm_name,
-    )
     plot_cost_breakdown(power_rows, output_dir / "compromise_cost_breakdown.png", algorithm_name=algorithm_name)
-    plot_curtailment_curve(power_rows, output_dir / "compromise_curtailment_curve.png", algorithm_name=algorithm_name)
 
-    pareto_path = input_dir / "multi_objective_pareto.csv"
-    reference_path = input_dir / "multi_objective_reference_pareto.csv"
-    history_path = input_dir / "multi_objective_convergence_history.csv"
-    summary_path = input_dir / "multi_objective_summary.json"
-    if pareto_path.exists():
-        reference_rows = read_dict_rows(reference_path) if reference_path.exists() else []
-        plot_pareto_front(read_dict_rows(pareto_path), reference_rows, output_dir / "multi_objective_pareto.png", algorithm_name=algorithm_name)
-    if history_path.exists():
-        plot_selected_history(read_dict_rows(history_path), summary_path, output_dir / "multi_objective_history.png")
+
+def clear_existing_png_files(output_dir):
+    if not output_dir.exists():
+        return
+    for path in output_dir.rglob("*.png"):
+        path.unlink()
 
 
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    clear_existing_png_files(OUTPUT_DIR)
 
     plotted_dirs = []
     metric_sets = {}
     convergence_sets = {}
     pareto_sets = {}
     reference_rows = []
-    if has_result_set(RESULTS_DIR):
-        plot_result_set(RESULTS_DIR, OUTPUT_DIR)
-        plotted_dirs.append(RESULTS_DIR)
 
-    for algorithm_name in ("MOIABC", "MOABC"):
-        input_dir = RESULTS_DIR / algorithm_name
+    algorithm_dirs = [
+        path
+        for path in sorted(RESULTS_DIR.iterdir())
+        if path.is_dir() and has_result_set(path)
+    ]
+
+    for input_dir in algorithm_dirs:
+        algorithm_name = input_dir.name
         if has_result_set(input_dir):
             output_dir = OUTPUT_DIR / algorithm_name
             plot_result_set(input_dir, output_dir, algorithm_name=algorithm_name)

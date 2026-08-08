@@ -430,7 +430,7 @@ def draw_metric_boxplot(metric_rows, algorithms, metric, output_path, axis=None)
 
     box = axis.boxplot(
         data,
-        tick_labels=labels,
+        labels=labels,
         patch_artist=True,
         showmeans=True,
         meanprops={
@@ -465,7 +465,6 @@ def draw_metric_boxplot(metric_rows, algorithms, metric, output_path, axis=None)
     axis.spines["right"].set_visible(False)
     axis.tick_params(axis="x", labelsize=8.2, rotation=0)
     axis.tick_params(axis="y", labelsize=8.8)
-    axis.set_title(f"{spec['label']} 箱线图", fontsize=12, fontweight="bold", family=font_family)
 
     if own_figure:
         fig.tight_layout()
@@ -553,7 +552,7 @@ def main():
             algorithms,
             metric,
             table_png,
-            show_title=True,
+            show_title=False,
             title_prefix="表X 多目标算法对比实验结果",
             show_note=True,
             cell_suffixes=suffixes,

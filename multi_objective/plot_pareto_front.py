@@ -188,7 +188,6 @@ def draw_pareto_front(rows, benchmark_id, output_path, max_points):
 
     ax.set_xlabel("目标 f1", fontsize=11, family=font_family)
     ax.set_ylabel("目标 f2", fontsize=11, family=font_family)
-    ax.set_title(f"{benchmark_id} Pareto 前沿对比图", fontsize=13, fontweight="bold", family=font_family)
     ax.grid(True, linestyle="--", linewidth=0.6, alpha=0.35)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)

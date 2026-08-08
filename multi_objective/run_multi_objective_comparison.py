@@ -44,7 +44,8 @@ RUN_TIMES = env_int("MO_COMPARISON_RUN_TIMES", 30)
 SEED_BASE = env_int("MO_COMPARISON_SEED_BASE", 20260723)
 PARALLEL_WORKERS = env_int("MO_COMPARISON_WORKERS", 8)
 SAVE_ARCHIVE_POINTS = env_bool("MO_COMPARISON_SAVE_ARCHIVE_POINTS", True)
-SAVE_PLOTS = env_bool("MO_COMPARISON_SAVE_PLOTS", True)
+SAVE_PLOTS = env_bool("MO_COMPARISON_SAVE_PLOTS", False)
+SAVE_SUMMARY_PLOTS = env_bool("MO_COMPARISON_SAVE_SUMMARY_PLOTS", True)
 IGD_REFERENCE_POINTS = env_int("MO_COMPARISON_IGD_REFERENCE_POINTS", 2000)
 IGD_REFERENCE_CANDIDATES = env_int("MO_COMPARISON_IGD_REFERENCE_CANDIDATES", 12000)
 
@@ -472,7 +473,6 @@ def plot_pareto_scatter(grouped_results, benchmark, filename):
         axis.set_xlabel("目标 f1")
         axis.set_ylabel("目标 f2")
         axis.set_zlabel("目标 f3")
-        axis.set_title(f"{benchmark['id']} Pareto 非支配解散点图")
         axis.legend(fontsize=LEGEND_FONT_SIZE)
         plt.tight_layout()
         plt.savefig(filename, dpi=300)
@@ -487,7 +487,6 @@ def plot_pareto_scatter(grouped_results, benchmark, filename):
 
     plt.xlabel("目标 f1")
     plt.ylabel("目标 f2")
-    plt.title(f"{benchmark['id']} Pareto 非支配解散点图")
     plt.grid(True, linestyle="--", alpha=0.4)
     plt.legend(fontsize=LEGEND_FONT_SIZE)
     plt.tight_layout()
@@ -504,7 +503,6 @@ def plot_average_history(grouped_results, benchmark, filename):
 
     plt.xlabel("迭代次数")
     plt.ylabel("档案中最小目标和")
-    plt.title(f"{benchmark['id']} 平均收敛参考曲线")
     plt.grid(True, linestyle="--", alpha=0.4)
     plt.legend(fontsize=LEGEND_FONT_SIZE)
     plt.tight_layout()
@@ -516,6 +514,84 @@ def save_plots(grouped_results, benchmark, output_dir):
     benchmark_id = benchmark["id"].lower()
     plot_pareto_scatter(grouped_results, benchmark, output_dir / f"{benchmark_id}_pareto_scatter.png")
     plot_average_history(grouped_results, benchmark, output_dir / f"{benchmark_id}_average_history.png")
+
+
+def normalized_mean_histories(grouped_results):
+    mean_histories = {}
+    for algorithm_name, results in grouped_results.items():
+        min_length = min(len(item["history"]) for item in results)
+        histories = np.asarray([item["history"][:min_length] for item in results], dtype=float)
+        mean_histories[algorithm_name] = np.mean(histories, axis=0)
+
+    all_values = np.concatenate(list(mean_histories.values()))
+    best_value = float(np.min(all_values))
+    initial_worst = float(max(history[0] for history in mean_histories.values()))
+    denominator = initial_worst - best_value
+    if np.isclose(denominator, 0.0):
+        denominator = 1.0
+
+    return {
+        algorithm_name: np.clip((history - best_value) / denominator, 0.0, None)
+        for algorithm_name, history in mean_histories.items()
+    }
+
+
+def overall_average_histories(all_results, algorithms):
+    grouped_histories = {algorithm: [] for algorithm in algorithms}
+    for grouped_results in all_results.values():
+        normalized = normalized_mean_histories(grouped_results)
+        for algorithm in algorithms:
+            if algorithm in normalized:
+                grouped_histories[algorithm].append(normalized[algorithm])
+
+    output = {}
+    for algorithm, histories in grouped_histories.items():
+        if not histories:
+            continue
+        min_length = min(len(history) for history in histories)
+        stacked = np.asarray([history[:min_length] for history in histories], dtype=float)
+        output[algorithm] = np.mean(stacked, axis=0)
+    return output
+
+
+def save_overall_average_history_csv(filename, overall_histories):
+    rows = []
+    for algorithm, history in overall_histories.items():
+        for iteration, value in enumerate(history):
+            rows.append(
+                {
+                    "algorithm": algorithm,
+                    "iteration": iteration,
+                    "normalized_best_sum": float(value),
+                }
+            )
+    save_rows_to_csv(filename, rows)
+
+
+def plot_overall_average_history(all_results, algorithms, output_dir):
+    overall_histories = overall_average_histories(all_results, algorithms)
+    if not overall_histories:
+        return []
+
+    csv_path = output_dir / "overall_average_history.csv"
+    png_path = output_dir / "overall_average_history.png"
+    save_overall_average_history_csv(csv_path, overall_histories)
+
+    plt.figure(figsize=(10, 5.6))
+    for algorithm in algorithms:
+        history = overall_histories.get(algorithm)
+        if history is None:
+            continue
+        plt.plot(np.arange(len(history)), history, linewidth=2, label=algorithm)
+
+    plt.xlabel("Iteration")
+    plt.ylabel("Normalized best-sum")
+    plt.grid(True, linestyle="--", alpha=0.4)
+    plt.legend(fontsize=LEGEND_FONT_SIZE)
+    plt.tight_layout()
+    plt.savefig(png_path, dpi=300)
+    plt.close()
+    return [csv_path, png_path]
 
 
 def get_enabled_benchmarks():
@@ -552,6 +628,7 @@ def print_run_configuration(group, benchmarks, algorithms):
     print(f"并行进程数: {PARALLEL_WORKERS}")
     print(f"保存档案点: {'是' if SAVE_ARCHIVE_POINTS else '否'}")
     print(f"保存图像: {'是' if SAVE_PLOTS else '否'}")
+    print(f"保存总体收敛图: {'是' if SAVE_SUMMARY_PLOTS else '否'}")
     print(f"IGD 经验参考前沿使用点数: {IGD_REFERENCE_POINTS if IGD_REFERENCE_POINTS > 0 else '全部'}")
     print(f"三目标 IGD 参考前沿候选点数: {IGD_REFERENCE_CANDIDATES if IGD_REFERENCE_CANDIDATES > 0 else '全部'}")
     print(
@@ -637,6 +714,10 @@ def run_experiment_group(group, benchmarks):
     total_start_time = time.perf_counter()
     for benchmark in benchmarks:
         all_results[benchmark["id"]] = run_benchmark(benchmark, algorithms, output_dir)
+
+    if SAVE_SUMMARY_PLOTS:
+        for output in plot_overall_average_history(all_results, [algorithm["name"] for algorithm in algorithms], output_dir):
+            print(f"总体收敛图输出: {output}")
 
     wilcoxon_rows = []
     enabled_algorithm_names = [algorithm["name"] for algorithm in algorithms]

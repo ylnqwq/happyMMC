@@ -211,7 +211,8 @@ RUN_TIMES = env_int("MO_COMPARISON_RUN_TIMES", 30)
 SEED_BASE = env_int("MO_COMPARISON_SEED_BASE", 20260723)
 PARALLEL_WORKERS = env_int("MO_COMPARISON_WORKERS", 8)
 SAVE_ARCHIVE_POINTS = env_bool("MO_COMPARISON_SAVE_ARCHIVE_POINTS", True)
-SAVE_PLOTS = env_bool("MO_COMPARISON_SAVE_PLOTS", True)
+SAVE_PLOTS = env_bool("MO_COMPARISON_SAVE_PLOTS", False)
+SAVE_SUMMARY_PLOTS = env_bool("MO_COMPARISON_SAVE_SUMMARY_PLOTS", True)
 
 ENABLED_SUITES = env_csv("MO_COMPARISON_SUITES", ["ZDT", "CEC2009_UF", "CEC2020_MMO"])
 ENABLED_FUNCTION_IDS = env_csv("MO_COMPARISON_FUNCTION_IDS")
@@ -276,8 +277,10 @@ multi_objective/mo_comparison_results_improved_algorithms/
 
 - `*_results.csv`：每次独立运行的档案规模、目标和、spacing、hypervolume、耗时等
 - `*_archive_points.csv`：Pareto 档案中的目标函数值
-- `*_pareto_scatter.png`：Pareto 非支配解散点图
-- `*_average_history.png`：平均收敛参考曲线
+- `*_pareto_scatter.png`：Pareto 非支配解散点图（仅在 `MO_COMPARISON_SAVE_PLOTS=1` 时生成）
+- `*_average_history.png`：平均收敛参考曲线（仅在 `MO_COMPARISON_SAVE_PLOTS=1` 时生成）
+- `overall_average_history.png`：跨全部测试函数归一化平均后的总体收敛曲线
+- `overall_average_history.csv`：总体收敛曲线数据
 - `wilcoxon_*_vs_moiabc_results.csv`：启用 `MOIABC` 时生成的 Wilcoxon 检验
 - `wilcoxon_test_results.csv`
 - `average_rank_results.csv`
@@ -454,7 +457,7 @@ ENABLED_ALGORITHMS = ["MOABC", "MOIABC"]
 
 - 单目标对比：使用环境变量 `SO_SAVE_PLOTS=0`
 - 微电网案例：使用环境变量 `APP_SAVE_PLOTS=0`
-- 多目标主对比：修改脚本常量 `SAVE_PLOTS`、`SAVE_ARCHIVE_POINTS`
+- 多目标主对比：使用环境变量 `MO_COMPARISON_SAVE_PLOTS=0`、`MO_COMPARISON_SAVE_SUMMARY_PLOTS=0`、`MO_COMPARISON_SAVE_ARCHIVE_POINTS=0`
 - 多目标消融：使用环境变量 `MOIABC_ABLATION_SAVE_ARCHIVE_POINTS=0`
 
 ## 统计结果说明

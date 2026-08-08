@@ -15,7 +15,7 @@ if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
 from multi_objective.algorithms import MOIABC
-from multi_objective.mo_utils import calculate_hypervolume, spacing_metric
+from multi_objective.mo_utils import attach_igd_metrics, calculate_hypervolume, spacing_metric
 from multi_objective.multiobjective_benchmarks import CEC2009_UF_BENCHMARKS, CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
 from experiment_utils import env_csv, env_int, env_output_dir, format_float, print_progress, save_rows_to_csv, select_enabled_items
 
@@ -28,6 +28,8 @@ OUTPUT_DIR = env_output_dir(
     MODULE_DIR,
 )
 PARALLEL_WORKERS = env_int("MOIABC_ARCHIVE_RATE_SENSITIVITY_WORKERS", 8)
+IGD_REFERENCE_POINTS = env_int("MOIABC_ARCHIVE_RATE_SENSITIVITY_IGD_REFERENCE_POINTS", 2000)
+IGD_REFERENCE_CANDIDATES = env_int("MOIABC_ARCHIVE_RATE_SENSITIVITY_IGD_REFERENCE_CANDIDATES", 12000)
 
 ENABLED_SUITES = env_csv("MOIABC_ARCHIVE_RATE_SENSITIVITY_SUITES", ["ZDT", "CEC2009_UF", "CEC2020_MMO"])
 ENABLED_FUNCTION_IDS = env_csv("MOIABC_ARCHIVE_RATE_SENSITIVITY_FUNCTION_IDS")
@@ -53,6 +55,8 @@ RANK_METRICS = [
     ("hypervolume", True),
     ("spacing", False),
     ("best_sum", False),
+    ("igd", False),
+    ("igd_plus", False),
 ]
 
 
@@ -85,6 +89,7 @@ def run_once(benchmark, seed, archive_rate):
         "archive_rate": archive_rate,
         "seed": used_seed,
         "archive_size": len(archive_objectives),
+        "archive_objectives": archive_objectives,
         "best_sum": best_sum,
         "mean_sum": float(np.mean(objective_sums)),
         "spacing": spacing_metric(archive_objectives),
@@ -121,6 +126,8 @@ def print_configuration(benchmarks):
     print(f"archive_rate values: {ARCHIVE_RATES}")
     print(f"Total MOIABC runs: {total_runs}")
     print(f"Parallel workers: {PARALLEL_WORKERS}")
+    print(f"IGD reference points: {IGD_REFERENCE_POINTS if IGD_REFERENCE_POINTS > 0 else 'all'}")
+    print(f"IGD reference candidates: {IGD_REFERENCE_CANDIDATES if IGD_REFERENCE_CANDIDATES > 0 else 'all'}")
 
 
 def summarize_results(rows):
@@ -136,6 +143,8 @@ def summarize_results(rows):
         mean_sums = np.array([item["mean_sum"] for item in items], dtype=float)
         spacings = np.array([item["spacing"] for item in items], dtype=float)
         hypervolumes = np.array([item["hypervolume"] for item in items], dtype=float)
+        igd_values = np.array([item["igd"] for item in items], dtype=float)
+        igd_plus_values = np.array([item["igd_plus"] for item in items], dtype=float)
         times = np.array([item["time"] for item in items], dtype=float)
         ddof = 1 if len(items) > 1 else 0
         summary_rows.append(
@@ -153,10 +162,31 @@ def summarize_results(rows):
                 "mean_hypervolume": float(np.mean(hypervolumes)),
                 "std_hypervolume": float(np.std(hypervolumes, ddof=ddof)),
                 "best_hypervolume": float(np.max(hypervolumes)),
+                "mean_igd": float(np.mean(igd_values)),
+                "std_igd": float(np.std(igd_values, ddof=ddof)),
+                "best_igd": float(np.min(igd_values)),
+                "mean_igd_plus": float(np.mean(igd_plus_values)),
+                "std_igd_plus": float(np.std(igd_plus_values, ddof=ddof)),
+                "best_igd_plus": float(np.min(igd_plus_values)),
                 "mean_time": float(np.mean(times)),
             }
         )
     return summary_rows
+
+
+def attach_igd_metrics_to_rows(rows):
+    benchmark_ids = sorted({row["benchmark_id"] for row in rows})
+    for benchmark_id in benchmark_ids:
+        benchmark_rows = [row for row in rows if row["benchmark_id"] == benchmark_id]
+        grouped_results = {}
+        for row in benchmark_rows:
+            key = f"archive_rate={row['archive_rate']:.12g}"
+            grouped_results.setdefault(key, []).append(row)
+        attach_igd_metrics(
+            grouped_results,
+            reference_points=IGD_REFERENCE_POINTS,
+            reference_candidates=IGD_REFERENCE_CANDIDATES,
+        )
 
 
 def rank_parameter_sets(summary_rows):
@@ -187,6 +217,8 @@ def rank_parameter_sets(summary_rows):
                     "mean_hypervolume": 0.0,
                     "mean_spacing": 0.0,
                     "mean_best_sum": 0.0,
+                    "mean_igd": 0.0,
+                    "mean_igd_plus": 0.0,
                 },
             )
             metric_sums[key][value_key] += row[value_key]
@@ -205,6 +237,8 @@ def rank_parameter_sets(summary_rows):
                 "mean_hypervolume": 0.0,
                 "mean_spacing": 0.0,
                 "mean_best_sum": 0.0,
+                "mean_igd": 0.0,
+                "mean_igd_plus": 0.0,
             },
         )
         average_rank = rank_sums.get(archive_rate)
@@ -218,6 +252,8 @@ def rank_parameter_sets(summary_rows):
                 "average_hypervolume": sums["mean_hypervolume"] / benchmark_count,
                 "average_spacing": sums["mean_spacing"] / benchmark_count,
                 "average_best_sum": sums["mean_best_sum"] / benchmark_count,
+                "average_igd": sums["mean_igd"] / benchmark_count,
+                "average_igd_plus": sums["mean_igd_plus"] / benchmark_count,
             }
         )
     return sorted(rank_rows, key=lambda item: (item["average_rank"], -item["best_count"]))
@@ -260,13 +296,16 @@ def main():
                 print_progress(done, total_tasks, prefix=prefix)
 
     print()
+    attach_igd_metrics_to_rows(rows)
     detail_rows = [
         {
-            **row,
+            **{key: value for key, value in row.items() if key != "archive_objectives"},
             "best_sum": format_float(row["best_sum"]),
             "mean_sum": format_float(row["mean_sum"]),
             "spacing": format_float(row["spacing"]),
             "hypervolume": format_float(row["hypervolume"]),
+            "igd": format_float(row["igd"]),
+            "igd_plus": format_float(row["igd_plus"]),
             "time": format_float(row["time"], precision=6),
         }
         for row in rows

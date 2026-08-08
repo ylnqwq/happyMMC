@@ -20,7 +20,9 @@ ABLATION_ALGORITHM_ORDER = [
     "MOIABC",
     "MOIABC-no-good-point-init",
     "MOIABC-no-tournament-selection",
+    "MOIABC-no-archive-guidance",
     "MOIABC-no-elite-enhancement",
+    "MOIABC-no-adaptive-elimination",
     "MOIABC-no-worst-elimination",
     "MOABC-equivalent",
 ]
@@ -29,7 +31,9 @@ ABLATION_ALGORITHM_LABELS = {
     "MOIABC": "MOIABC",
     "MOIABC-no-good-point-init": "MOIABC-NG",
     "MOIABC-no-tournament-selection": "MOIABC-NT",
+    "MOIABC-no-archive-guidance": "MOIABC-NAG",
     "MOIABC-no-elite-enhancement": "MOIABC-NE",
+    "MOIABC-no-adaptive-elimination": "MOIABC-NAE",
     "MOIABC-no-worst-elimination": "MOIABC-NW",
     "MOABC-equivalent": "MOABC",
 }

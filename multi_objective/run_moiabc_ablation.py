@@ -82,6 +82,7 @@ VARIANTS = [
         "use_elite_enhancement": True,
         "use_archive_guidance": True,
         "use_worst_elimination": True,
+        "use_adaptive_elimination": True,
     },
     {
         "name": "MOIABC-no-good-point-init",
@@ -90,6 +91,7 @@ VARIANTS = [
         "use_elite_enhancement": True,
         "use_archive_guidance": True,
         "use_worst_elimination": True,
+        "use_adaptive_elimination": True,
     },
     {
         "name": "MOIABC-no-tournament-selection",
@@ -98,6 +100,16 @@ VARIANTS = [
         "use_elite_enhancement": True,
         "use_archive_guidance": True,
         "use_worst_elimination": True,
+        "use_adaptive_elimination": True,
+    },
+    {
+        "name": "MOIABC-no-archive-guidance",
+        "use_good_point_init": True,
+        "use_tournament_selection": True,
+        "use_elite_enhancement": True,
+        "use_archive_guidance": False,
+        "use_worst_elimination": True,
+        "use_adaptive_elimination": True,
     },
     {
         "name": "MOIABC-no-elite-enhancement",
@@ -106,6 +118,16 @@ VARIANTS = [
         "use_elite_enhancement": False,
         "use_archive_guidance": False,
         "use_worst_elimination": True,
+        "use_adaptive_elimination": True,
+    },
+    {
+        "name": "MOIABC-no-adaptive-elimination",
+        "use_good_point_init": True,
+        "use_tournament_selection": True,
+        "use_elite_enhancement": True,
+        "use_archive_guidance": True,
+        "use_worst_elimination": True,
+        "use_adaptive_elimination": False,
     },
     {
         "name": "MOIABC-no-worst-elimination",
@@ -114,6 +136,7 @@ VARIANTS = [
         "use_elite_enhancement": True,
         "use_archive_guidance": True,
         "use_worst_elimination": False,
+        "use_adaptive_elimination": False,
     },
     {
         "name": "MOABC-equivalent",
@@ -122,6 +145,7 @@ VARIANTS = [
         "use_elite_enhancement": False,
         "use_archive_guidance": False,
         "use_worst_elimination": False,
+        "use_adaptive_elimination": False,
     },
 ]
 
@@ -219,13 +243,16 @@ def run_moiabc_variant(objective_function, bounds, seed, variant, params):
         if variant["use_worst_elimination"]:
             population_best_value = float(np.min(np.sum(objectives, axis=1)))
             current_best_value = min(history[-1], population_best_value)
-            current_elimination_rate = MOIABC.get_current_elimination_rate(
-                params["elimination_rate"],
-                iteration,
-                params["max_iter"],
-                initial_best_value=history[0],
-                current_best_value=current_best_value,
-            )
+            if variant.get("use_adaptive_elimination", True):
+                current_elimination_rate = MOIABC.get_current_elimination_rate(
+                    params["elimination_rate"],
+                    iteration,
+                    params["max_iter"],
+                    initial_best_value=history[0],
+                    current_best_value=current_best_value,
+                )
+            else:
+                current_elimination_rate = params["elimination_rate"]
             MOIABC.worst_elimination_phase(
                 food_sources,
                 objectives,

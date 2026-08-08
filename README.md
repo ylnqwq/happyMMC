@@ -354,7 +354,9 @@ python multi_objective\run_moiabc_ablation.py
 - `MOIABC`
 - `MOIABC-no-good-point-init`
 - `MOIABC-no-tournament-selection`
+- `MOIABC-no-archive-guidance`
 - `MOIABC-no-elite-enhancement`
+- `MOIABC-no-adaptive-elimination`
 - `MOIABC-no-worst-elimination`
 - `MOABC-equivalent`
 

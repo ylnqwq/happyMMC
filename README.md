@@ -58,7 +58,7 @@ IABC/
     |-- mo_utils.py
     |-- algorithms/
     |   |-- MOABC.py
-    |   |-- CMMODE.py
+    |   |-- ISSA.py
     |   |-- MODE.py
     |   |-- MOEAD.py
     |   |-- MOIABC.py
@@ -185,7 +185,7 @@ python single_objective\plot_single_objective_results.py --mode sensitivity --in
 - `MOPSO`：多目标粒子群算法
 - `Zhou-IMOABC`：Zhou 风格改进多目标人工蜂群算法
 - `Yang-IGWO`：杨慧娴改进灰狼优化算法
-- `CMMODE`：基于竞争机制的多策略多目标差分进化算法
+- `ISSA`：改进麻雀搜索算法
 - `MOIABC`：本项目多目标改进人工蜂群算法
 
 ### 测试函数
@@ -225,7 +225,7 @@ EXPERIMENT_GROUPS = [
     {
         "name": "improved_algorithms",
         "output_dir": MODULE_DIR / "mo_comparison_results_improved_algorithms",
-        "algorithms": ["Zhou-IMOABC", "Yang-IGWO", "CMMODE", "MOIABC"],
+        "algorithms": ["Zhou-IMOABC", "Yang-IGWO", "ISSA", "MOIABC"],
     },
 ]
 

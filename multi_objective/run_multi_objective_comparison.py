@@ -19,7 +19,7 @@ if str(ROOT_DIR) not in sys.path:
 if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
-from multi_objective.algorithms import CMMODE, MOABC, MODE, MOEAD, MOIABC, MOPSO, Yang_IGWO, Zhou_IMOABC
+from multi_objective.algorithms import ISSA, MOABC, MODE, MOEAD, MOIABC, MOPSO, Yang_IGWO, Zhou_IMOABC
 from multi_objective.mo_utils import calculate_hypervolume, non_dominated_mask, spacing_metric
 from multi_objective.multiobjective_benchmarks import CEC2009_UF_BENCHMARKS, CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
 from multi_objective.statistical_tests import (
@@ -71,7 +71,7 @@ IMPROVED_EXPERIMENT_GROUP = {
         MODULE_DIR / "mo_comparison_results_improved_algorithms",
         MODULE_DIR,
     ),
-    "algorithms": ["Zhou-IMOABC", "Yang-IGWO", "CMMODE", "MOIABC"],
+    "algorithms": ["Zhou-IMOABC", "Yang-IGWO", "ISSA", "MOIABC"],
 }
 EXPERIMENT_GROUPS = [
     STANDARD_EXPERIMENT_GROUP,
@@ -157,13 +157,14 @@ ALGORITHMS = [
         },
     },
     {
-        "name": "CMMODE",
-        "runner": CMMODE.cmmode,
+        "name": "ISSA",
+        "runner": ISSA.issa,
         "params": {
             **COMMON_PARAMS,
-            "mutation_factor": 0.5,
-            "crossover_rate": 0.9,
-            "elite_search_rate": 0.5,
+            "discoverer_rate": 0.2,
+            "warner_rate": 0.15,
+            "safety_threshold": 0.8,
+            "disturbance_rate": 0.35,
         },
     },
     {

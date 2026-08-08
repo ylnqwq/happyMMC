@@ -26,7 +26,7 @@ ALGORITHM_ORDER = [
     "MOABC",
     "Zhou-IMOABC",
     "Yang-IGWO",
-    "CMMODE",
+    "ISSA",
     "MOIABC",
 ]
 COLORS = {
@@ -37,7 +37,7 @@ COLORS = {
     "MOABC": "#4e8fc7",
     "Zhou-IMOABC": "#8b6bb8",
     "Yang-IGWO": "#58a65c",
-    "CMMODE": "#d39c31",
+    "ISSA": "#d39c31",
     "MOIABC": "#d66b5f",
 }
 MARKERS = {
@@ -47,7 +47,7 @@ MARKERS = {
     "MOABC": "D",
     "Zhou-IMOABC": "v",
     "Yang-IGWO": "X",
-    "CMMODE": "h",
+    "ISSA": "h",
     "MOIABC": "P",
 }
 

@@ -41,7 +41,7 @@ ALGORITHM_ORDER = [
     "MOABC",
     "Zhou-IMOABC",
     "Yang-IGWO",
-    "CMMODE",
+    "ISSA",
     "MOIABC",
 ]
 METRICS = ["igd", "igd_plus"]
@@ -52,7 +52,7 @@ COLORS = {
     "MOABC": "#4e8fc7",
     "Zhou-IMOABC": "#8b6bb8",
     "Yang-IGWO": "#58a65c",
-    "CMMODE": "#d39c31",
+    "ISSA": "#d39c31",
     "MOIABC": "#d66b5f",
 }
 

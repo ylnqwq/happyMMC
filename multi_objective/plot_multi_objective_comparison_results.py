@@ -34,7 +34,7 @@ ALGORITHM_ORDER = [
     "MOABC",
     "Zhou-IMOABC",
     "Yang-IGWO",
-    "CMMODE",
+    "ISSA",
     "MOIABC",
 ]
 DEFAULT_METRICS = ["hypervolume", "spacing", "best_sum", "igd", "igd_plus"]

@@ -19,13 +19,25 @@ if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
 DEFAULT_INPUT_DIR = MODULE_DIR / "mo_comparison_results_standard_algorithms"
-ALGORITHM_ORDER = ["MO-DE", "MOEA/D", "MOPSO", "MOABC", "MOIABC"]
+ALGORITHM_ORDER = [
+    "MO-DE",
+    "MOEA/D",
+    "MOPSO",
+    "MOABC",
+    "Zhou-IMOABC",
+    "Yang-IGWO",
+    "CMMODE",
+    "MOIABC",
+]
 COLORS = {
     "True PF": "#222222",
     "MO-DE": "#f1b183",
     "MOEA/D": "#7fa6d9",
     "MOPSO": "#a7dce0",
     "MOABC": "#4e8fc7",
+    "Zhou-IMOABC": "#8b6bb8",
+    "Yang-IGWO": "#58a65c",
+    "CMMODE": "#d39c31",
     "MOIABC": "#d66b5f",
 }
 MARKERS = {
@@ -33,6 +45,9 @@ MARKERS = {
     "MOEA/D": "s",
     "MOPSO": "^",
     "MOABC": "D",
+    "Zhou-IMOABC": "v",
+    "Yang-IGWO": "X",
+    "CMMODE": "h",
     "MOIABC": "P",
 }
 

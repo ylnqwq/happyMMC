@@ -27,8 +27,17 @@ from multi_objective.plot_moiabc_sensitivity_results import (
 
 
 DEFAULT_INPUT_DIR = MODULE_DIR / "mo_comparison_results_standard_algorithms"
-ALGORITHM_ORDER = ["MO-DE", "MOEA/D", "MOPSO", "MOABC", "MOIABC"]
-DEFAULT_METRICS = ["hypervolume", "spacing", "best_sum"]
+ALGORITHM_ORDER = [
+    "MO-DE",
+    "MOEA/D",
+    "MOPSO",
+    "MOABC",
+    "Zhou-IMOABC",
+    "Yang-IGWO",
+    "CMMODE",
+    "MOIABC",
+]
+DEFAULT_METRICS = ["hypervolume", "spacing", "best_sum", "igd", "igd_plus"]
 
 
 def parse_args():
@@ -77,6 +86,7 @@ def result_csv_paths(input_dir):
 def summarize_results(input_dir):
     grouped = {}
     algorithms = []
+    present_metric_names = set()
     for path in result_csv_paths(input_dir):
         for row in read_csv_rows(path):
             benchmark_id = row["benchmark_id"]
@@ -84,6 +94,9 @@ def summarize_results(input_dir):
             grouped.setdefault((benchmark_id, algorithm), []).append(row)
             if algorithm not in algorithms:
                 algorithms.append(algorithm)
+            for metric in DEFAULT_METRICS:
+                if metric in row and row[metric] != "":
+                    present_metric_names.add(metric)
 
     if not grouped:
         raise FileNotFoundError(f"No benchmark *_results.csv files found in {input_dir}")
@@ -95,6 +108,8 @@ def summarize_results(input_dir):
             "variant": algorithm,
         }
         for metric in DEFAULT_METRICS:
+            if metric not in present_metric_names:
+                continue
             values = np.array([float(item[metric]) for item in items], dtype=float)
             ddof = 1 if len(values) > 1 else 0
             spec = METRIC_SPECS[metric]
@@ -108,16 +123,11 @@ def summarize_results(input_dir):
 
 
 def write_summary_csv(rows, output_path):
-    fieldnames = [
-        "benchmark_id",
-        "variant",
-        "mean_hypervolume",
-        "std_hypervolume",
-        "mean_spacing",
-        "std_spacing",
-        "mean_best_sum",
-        "std_best_sum",
-    ]
+    fieldnames = ["benchmark_id", "variant"]
+    for metric in DEFAULT_METRICS:
+        spec = METRIC_SPECS[metric]
+        if rows and spec["mean"] in rows[0] and spec["std"] in rows[0]:
+            fieldnames.extend([spec["mean"], spec["std"]])
     with output_path.open("w", encoding="utf-8-sig", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
@@ -184,6 +194,39 @@ def read_wilcoxon_suffixes(input_dir, reference_algorithm="MOIABC"):
     return suffixes
 
 
+def wilcoxon_footer_values(input_dir, algorithms, metric, reference_algorithm="MOIABC"):
+    path = input_dir / "wilcoxon_test_results.csv"
+    if not path.exists():
+        return None
+
+    counts = {
+        algorithm: {"+": 0, "=": 0, "-": 0}
+        for algorithm in algorithms
+        if algorithm != reference_algorithm
+    }
+    for row in read_csv_rows(path):
+        if row["metric"] != metric or row["improved_algorithm"] != reference_algorithm:
+            continue
+        base_algorithm = row["base_algorithm"]
+        if base_algorithm not in counts:
+            continue
+        counts[base_algorithm][wilcoxon_sign(row)] += 1
+
+    values = []
+    for algorithm in algorithms:
+        if algorithm == reference_algorithm:
+            values.append("---")
+            continue
+        algorithm_counts = counts.get(algorithm)
+        if algorithm_counts is None:
+            values.append("")
+        else:
+            values.append(
+                f"{algorithm_counts['+']}/{algorithm_counts['=']}/{algorithm_counts['-']}"
+            )
+    return values
+
+
 def best_count_for_algorithm(summary_rows, benchmark_ids, algorithms, metric):
     spec = METRIC_SPECS[metric]
     mean_key = spec["mean"]
@@ -242,6 +285,11 @@ def main():
         output_png = output_dir / f"mo_comparison_{suffix}_table.png"
         output_csv = output_png.with_suffix(".csv")
         metric_algorithms = metric_algorithm_order(summary_rows, benchmark_ids, algorithms, metric)
+        footer_label = None
+        footer_values = None
+        if metric == "best_sum":
+            footer_label = "+/=/-"
+            footer_values = wilcoxon_footer_values(input_dir, metric_algorithms, metric)
         draw_ablation_table(
             summary_rows,
             benchmark_ids,
@@ -253,8 +301,19 @@ def main():
             show_note=True,
             cell_suffixes=cell_suffixes,
             note_suffix="符号 +、=、- 分别表示 MOIABC 的性能优于、相近于或劣于对应对比算法。",
+            footer_label=footer_label,
+            footer_values=footer_values,
         )
-        write_ablation_table_csv(summary_rows, benchmark_ids, metric_algorithms, metric, output_csv, cell_suffixes)
+        write_ablation_table_csv(
+            summary_rows,
+            benchmark_ids,
+            metric_algorithms,
+            metric,
+            output_csv,
+            cell_suffixes,
+            footer_label=footer_label,
+            footer_values=footer_values,
+        )
         outputs.extend([output_png, output_csv])
 
     outputs.extend(draw_average_rank_outputs(input_dir, output_dir, metrics))

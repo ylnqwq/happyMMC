@@ -25,6 +25,8 @@ STATISTICAL_TEST_METRICS = [
     ("hypervolume", True),
     ("spacing", False),
     ("best_sum", False),
+    ("igd", False),
+    ("igd_plus", False),
 ]
 
 
@@ -64,8 +66,9 @@ def result_csv_paths(input_dir):
 
 def normalize_item(row):
     item = dict(row)
-    for key in ["best_sum", "spacing", "hypervolume"]:
-        item[key] = float(item[key])
+    for key, _ in STATISTICAL_TEST_METRICS:
+        if key in item and item[key] != "":
+            item[key] = float(item[key])
     item["run"] = int(item["run"])
     return item
 
@@ -92,6 +95,22 @@ def load_all_results(input_dir):
     return all_results, algorithms
 
 
+def available_statistical_metrics(all_results, algorithms):
+    metrics = []
+    for metric_name, higher_is_better in STATISTICAL_TEST_METRICS:
+        available = all(
+            all(
+                algorithm in grouped_results
+                and all(metric_name in item and item[metric_name] != "" for item in grouped_results[algorithm])
+                for algorithm in algorithms
+            )
+            for grouped_results in all_results.values()
+        )
+        if available:
+            metrics.append((metric_name, higher_is_better))
+    return metrics
+
+
 def main():
     args = parse_args()
     input_dir = args.input_dir
@@ -101,6 +120,10 @@ def main():
         valid = ", ".join(algorithms)
         raise ValueError(f"Reference algorithm {args.reference!r} not found. Available algorithms: {valid}")
 
+    metrics = available_statistical_metrics(all_results, algorithms)
+    if not metrics:
+        raise ValueError("No complete statistical metrics found in result CSV files.")
+
     wilcoxon_rows = []
     for base_algorithm in [name for name in algorithms if name != args.reference]:
         wilcoxon_rows.extend(
@@ -109,7 +132,7 @@ def main():
                 all_results,
                 base_algorithm=base_algorithm,
                 improved_algorithm=args.reference,
-                metrics=STATISTICAL_TEST_METRICS,
+                metrics=metrics,
             )
         )
 
@@ -118,7 +141,7 @@ def main():
         input_dir / "average_rank_results.csv",
         all_results,
         algorithms=algorithms,
-        metrics=STATISTICAL_TEST_METRICS,
+        metrics=metrics,
     )
 
     print_wilcoxon_overview(wilcoxon_rows)

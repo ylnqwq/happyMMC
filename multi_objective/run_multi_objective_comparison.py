@@ -45,6 +45,8 @@ SEED_BASE = env_int("MO_COMPARISON_SEED_BASE", 20260723)
 PARALLEL_WORKERS = env_int("MO_COMPARISON_WORKERS", 8)
 SAVE_ARCHIVE_POINTS = env_bool("MO_COMPARISON_SAVE_ARCHIVE_POINTS", True)
 SAVE_PLOTS = env_bool("MO_COMPARISON_SAVE_PLOTS", True)
+IGD_REFERENCE_POINTS = env_int("MO_COMPARISON_IGD_REFERENCE_POINTS", 2000)
+IGD_REFERENCE_CANDIDATES = env_int("MO_COMPARISON_IGD_REFERENCE_CANDIDATES", 12000)
 
 # 全局测试开关：
 # 1. ENABLED_SUITES 控制要跑哪些测试集，可选 "ZDT"、"CEC2009_UF"、"CEC2020_MMO"。
@@ -177,6 +179,8 @@ STATISTICAL_TEST_METRICS = [
     ("hypervolume", True),
     ("spacing", False),
     ("best_sum", False),
+    ("igd", False),
+    ("igd_plus", False),
 ]
 
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "SimSun"]
@@ -224,16 +228,128 @@ def run_algorithm_task(task):
     return result
 
 
+def nondominated_front_2d(objectives):
+    order = np.lexsort((objectives[:, 1], objectives[:, 0]))
+    sorted_points = objectives[order]
+    selected = []
+    best_second = np.inf
+    for point in sorted_points:
+        if point[1] < best_second - 1e-12:
+            selected.append(point)
+            best_second = point[1]
+    return np.asarray(selected, dtype=float)
+
+
+def select_reference_candidates(objectives, max_candidates):
+    if max_candidates <= 0 or len(objectives) <= max_candidates:
+        return objectives
+
+    selected = set(np.linspace(0, len(objectives) - 1, max_candidates, dtype=int).tolist())
+    edge_count = max(20, max_candidates // (objectives.shape[1] * 20))
+    for axis in range(objectives.shape[1]):
+        order = np.argsort(objectives[:, axis])
+        selected.update(order[:edge_count].tolist())
+        selected.update(order[-edge_count:].tolist())
+    indexes = np.fromiter(sorted(selected), dtype=int)
+    return objectives[indexes]
+
+
+def nondominated_front_3d(objectives):
+    order = np.lexsort((objectives[:, 2], objectives[:, 1], objectives[:, 0]))
+    front = np.empty((0, 3), dtype=float)
+
+    for point in objectives[order]:
+        if len(front) > 0:
+            dominated_by_front = np.any(np.all(front <= point, axis=1) & np.any(front < point, axis=1))
+            if dominated_by_front:
+                continue
+            dominated_front = np.all(point <= front, axis=1) & np.any(point < front, axis=1)
+            if np.any(dominated_front):
+                front = front[~dominated_front]
+        front = np.vstack([front, point])
+    return front
+
+
+def nondominated_front_fast(objectives, max_candidates=12000):
+    if objectives.shape[1] == 2:
+        return nondominated_front_2d(objectives)
+    if objectives.shape[1] == 3:
+        candidates = select_reference_candidates(objectives, max_candidates)
+        return nondominated_front_3d(candidates)
+    return objectives[non_dominated_mask(objectives)]
+
+
+def normalize_objectives(objectives, ideal_point, nadir_point):
+    span = nadir_point - ideal_point
+    span = np.where(np.isclose(span, 0.0), 1.0, span)
+    return (objectives - ideal_point) / span
+
+
+def select_reference_points(reference_front, max_points):
+    if max_points <= 0 or len(reference_front) <= max_points:
+        return reference_front
+    indexes = np.linspace(0, len(reference_front) - 1, max_points).astype(int)
+    return reference_front[indexes]
+
+
+def mean_min_distance(approximation_front, reference_front, plus=False, chunk_size=256):
+    if len(approximation_front) == 0 or len(reference_front) == 0:
+        return np.inf
+
+    min_distances = []
+    for start in range(0, len(reference_front), chunk_size):
+        reference_chunk = reference_front[start : start + chunk_size]
+        diff = approximation_front[None, :, :] - reference_chunk[:, None, :]
+        if plus:
+            diff = np.maximum(diff, 0.0)
+        distances = np.linalg.norm(diff, axis=2)
+        min_distances.append(np.min(distances, axis=1))
+    return float(np.mean(np.concatenate(min_distances)))
+
+
+def attach_igd_metrics(grouped_results):
+    all_objectives = np.vstack(
+        [item["archive_objectives"] for results in grouped_results.values() for item in results]
+    )
+    _, unique_indexes = np.unique(all_objectives, axis=0, return_index=True)
+    all_objectives = all_objectives[np.sort(unique_indexes)]
+
+    reference_front = nondominated_front_fast(
+        all_objectives,
+        max_candidates=IGD_REFERENCE_CANDIDATES,
+    )
+    reference_front = reference_front[
+        np.lexsort(tuple(reference_front[:, index] for index in range(reference_front.shape[1] - 1, -1, -1)))
+    ]
+    used_reference_front = select_reference_points(reference_front, IGD_REFERENCE_POINTS)
+
+    ideal_point = np.min(all_objectives, axis=0)
+    nadir_point = np.max(all_objectives, axis=0)
+    normalized_reference = normalize_objectives(used_reference_front, ideal_point, nadir_point)
+
+    for results in grouped_results.values():
+        for item in results:
+            normalized_objectives = normalize_objectives(item["archive_objectives"], ideal_point, nadir_point)
+            item["reference_front_size"] = len(reference_front)
+            item["used_reference_front_size"] = len(used_reference_front)
+            item["igd"] = mean_min_distance(normalized_objectives, normalized_reference)
+            item["igd_plus"] = mean_min_distance(normalized_objectives, normalized_reference, plus=True)
+
+
 def calculate_statistics(results):
     archive_sizes = np.array([item["archive_size"] for item in results], dtype=float)
     best_sums = np.array([item["best_sum"] for item in results], dtype=float)
     spacings = np.array([item["spacing"] for item in results], dtype=float)
     hypervolumes = np.array([item["hypervolume"] for item in results], dtype=float)
+    igd_values = np.array([item["igd"] for item in results], dtype=float)
+    igd_plus_values = np.array([item["igd_plus"] for item in results], dtype=float)
     times = np.array([item["time"] for item in results], dtype=float)
     ddof = 1 if len(results) > 1 else 0
 
     best_sum_index = int(np.argmin(best_sums))
     best_hv_index = int(np.argmax(hypervolumes))
+    best_igd_index = int(np.argmin(igd_values))
+    best_igd_plus_index = int(np.argmin(igd_plus_values))
 
     return {
         "run_times": len(results),
@@ -245,9 +361,17 @@ def calculate_statistics(results):
         "mean_hypervolume": np.mean(hypervolumes),
         "std_hypervolume": np.std(hypervolumes, ddof=ddof),
         "best_hypervolume": np.max(hypervolumes),
+        "mean_igd": np.mean(igd_values),
+        "std_igd": np.std(igd_values, ddof=ddof),
+        "best_igd": np.min(igd_values),
+        "mean_igd_plus": np.mean(igd_plus_values),
+        "std_igd_plus": np.std(igd_plus_values, ddof=ddof),
+        "best_igd_plus": np.min(igd_plus_values),
         "mean_time": np.mean(times),
         "best_sum_seed": results[best_sum_index]["seed"],
         "best_hypervolume_seed": results[best_hv_index]["seed"],
+        "best_igd_seed": results[best_igd_index]["seed"],
+        "best_igd_plus_seed": results[best_igd_plus_index]["seed"],
     }
 
 
@@ -270,9 +394,17 @@ def print_statistics(benchmark, grouped_results):
         print(f"平均超体积: {stats['mean_hypervolume']:.16e}")
         print(f"超体积标准差: {stats['std_hypervolume']:.16e}")
         print(f"最好超体积: {stats['best_hypervolume']:.16e}")
+        print(f"平均 IGD: {stats['mean_igd']:.16e}")
+        print(f"IGD 标准差: {stats['std_igd']:.16e}")
+        print(f"最好 IGD: {stats['best_igd']:.16e}")
+        print(f"平均 IGD+: {stats['mean_igd_plus']:.16e}")
+        print(f"IGD+ 标准差: {stats['std_igd_plus']:.16e}")
+        print(f"最好 IGD+: {stats['best_igd_plus']:.16e}")
         print(f"平均耗时: {stats['mean_time']:.6f} 秒")
         print(f"最好目标和种子: {stats['best_sum_seed']}")
         print(f"最好超体积种子: {stats['best_hypervolume_seed']}")
+        print(f"最好 IGD 种子: {stats['best_igd_seed']}")
+        print(f"最好 IGD+ 种子: {stats['best_igd_plus_seed']}")
 
 
 def save_results_to_csv(filename, grouped_results):
@@ -294,6 +426,10 @@ def save_results_to_csv(filename, grouped_results):
                     "min_f3": item["min_f3"],
                     "spacing": item["spacing"],
                     "hypervolume": item["hypervolume"],
+                    "reference_front_size": item["reference_front_size"],
+                    "used_reference_front_size": item["used_reference_front_size"],
+                    "igd": item["igd"],
+                    "igd_plus": item["igd_plus"],
                     "time": item["time"],
                 }
             )
@@ -415,6 +551,8 @@ def print_run_configuration(group, benchmarks, algorithms):
     print(f"并行进程数: {PARALLEL_WORKERS}")
     print(f"保存档案点: {'是' if SAVE_ARCHIVE_POINTS else '否'}")
     print(f"保存图像: {'是' if SAVE_PLOTS else '否'}")
+    print(f"IGD 经验参考前沿使用点数: {IGD_REFERENCE_POINTS if IGD_REFERENCE_POINTS > 0 else '全部'}")
+    print(f"三目标 IGD 参考前沿候选点数: {IGD_REFERENCE_CANDIDATES if IGD_REFERENCE_CANDIDATES > 0 else '全部'}")
     print(
         "公共参数: "
         f"bee={COMMON_PARAMS['bee']}, "
@@ -459,6 +597,7 @@ def run_benchmark(benchmark, algorithms, output_dir):
     for results in grouped_results.values():
         results.sort(key=lambda item: item["run_index"])
 
+    attach_igd_metrics(grouped_results)
     print_statistics(benchmark, grouped_results)
     save_results_to_csv(output_dir / f"{benchmark['id'].lower()}_results.csv", grouped_results)
     if SAVE_ARCHIVE_POINTS:

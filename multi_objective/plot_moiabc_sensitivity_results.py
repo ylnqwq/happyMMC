@@ -63,6 +63,20 @@ METRIC_SPECS = {
         "label": "Mean error",
         "suffix": "mean_error",
     },
+    "igd": {
+        "mean": "mean_igd",
+        "std": "std_igd",
+        "higher_is_better": False,
+        "label": "IGD",
+        "suffix": "igd",
+    },
+    "igd_plus": {
+        "mean": "mean_igd_plus",
+        "std": "std_igd_plus",
+        "higher_is_better": False,
+        "label": "IGD+",
+        "suffix": "igd_plus",
+    },
 }
 
 EXCLUDED_DUPLICATE_BENCHMARK_IDS = set()
@@ -755,6 +769,8 @@ def draw_ablation_table(
     show_note=False,
     cell_suffixes=None,
     note_suffix="",
+    footer_label=None,
+    footer_values=None,
 ):
     spec = METRIC_SPECS[metric]
     mean_key = spec["mean"]
@@ -856,19 +872,25 @@ def draw_ablation_table(
                 family=font_family,
             )
 
+    if footer_values is None:
+        footer_label = footer_label or "个数"
+        footer_values = [str(count) for count in best_counts]
+    else:
+        footer_label = footer_label or ""
+
     count_y = 0.27
     ax.text(
         (x_positions[0] + x_positions[1]) / 2,
         count_y,
-        "个数",
+        footer_label,
         ha="center",
         va="center",
         fontsize=8.8,
         family=font_family,
     )
-    for column_index, count in enumerate(best_counts, start=1):
+    for column_index, value in enumerate(footer_values, start=1):
         x = (x_positions[column_index] + x_positions[column_index + 1]) / 2
-        ax.text(x, count_y, str(count), ha="center", va="center", fontsize=8.8, family=font_family)
+        ax.text(x, count_y, str(value), ha="center", va="center", fontsize=8.8, family=font_family)
 
     if show_note:
         direction = "越大越优" if higher_is_better else "越小越优"
@@ -883,7 +905,16 @@ def draw_ablation_table(
     plt.close(fig)
 
 
-def write_ablation_table_csv(summary_rows, benchmark_ids, algorithms, metric, output_path, cell_suffixes=None):
+def write_ablation_table_csv(
+    summary_rows,
+    benchmark_ids,
+    algorithms,
+    metric,
+    output_path,
+    cell_suffixes=None,
+    footer_label=None,
+    footer_values=None,
+):
     spec = METRIC_SPECS[metric]
     mean_key = spec["mean"]
     std_key = spec["std"]
@@ -911,9 +942,15 @@ def write_ablation_table_csv(summary_rows, benchmark_ids, algorithms, metric, ou
                     best_counts[algorithm_index] += 1
             writer.writerow(output_row)
 
-        count_row = {"benchmark_id": "count", "function": "个数"}
-        for header, count in zip(headers, best_counts):
-            count_row[header] = count
+        if footer_values is None:
+            footer_label = footer_label or "个数"
+            footer_values = [str(count) for count in best_counts]
+        else:
+            footer_label = footer_label or ""
+
+        count_row = {"benchmark_id": "footer", "function": footer_label}
+        for header, value in zip(headers, footer_values):
+            count_row[header] = value
         writer.writerow(count_row)
 
 

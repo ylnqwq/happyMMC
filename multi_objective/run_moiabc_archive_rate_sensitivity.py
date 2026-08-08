@@ -17,7 +17,16 @@ if str(MODULE_DIR) not in sys.path:
 from multi_objective.algorithms import MOIABC
 from multi_objective.mo_utils import attach_igd_metrics, calculate_hypervolume, spacing_metric
 from multi_objective.multiobjective_benchmarks import CEC2009_UF_BENCHMARKS, CEC2020_MMO_BENCHMARKS, ZDT_BENCHMARKS
-from experiment_utils import env_csv, env_int, env_output_dir, format_float, print_progress, save_rows_to_csv, select_enabled_items
+from experiment_utils import (
+    env_csv,
+    env_float_list,
+    env_int,
+    env_output_dir,
+    format_float,
+    print_progress,
+    save_rows_to_csv,
+    select_enabled_items,
+)
 
 
 RUN_TIMES = env_int("MOIABC_ARCHIVE_RATE_SENSITIVITY_RUN_TIMES", 30)
@@ -50,7 +59,10 @@ COMMON_PARAMS = {
     "elimination_rate": 0.25,
 }
 
-ARCHIVE_RATES = [0.40]
+ARCHIVE_RATES = env_float_list(
+    "MOIABC_ARCHIVE_RATE_SENSITIVITY_ARCHIVE_RATES",
+    [0.10, 0.20, 0.30, 0.40, 0.50],
+)
 RANK_METRICS = [
     ("hypervolume", True),
     ("spacing", False),

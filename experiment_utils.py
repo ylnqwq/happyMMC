@@ -30,6 +30,10 @@ def env_csv(name, default=None):
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def env_float_list(name, default):
+    return [float(item) for item in env_csv(name, default)]
+
+
 def env_output_dir(name, default, base_dir=None):
     value = os.environ.get(name)
     if value is None or value.strip() == "":

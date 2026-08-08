@@ -325,7 +325,7 @@ python multi_objective\run_moiabc_archive_rate_sensitivity.py
 默认扫描：
 
 ```python
-ARCHIVE_RATES = [0.40]
+ARCHIVE_RATES = [0.10, 0.20, 0.30, 0.40, 0.50]
 ```
 
 默认输出目录：

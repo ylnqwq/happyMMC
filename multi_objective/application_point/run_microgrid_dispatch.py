@@ -24,10 +24,13 @@ if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
 from experiment_utils import env_bool, env_csv, env_float, env_int, env_output_dir, format_float, print_progress
-from multi_objective.algorithms import MOABC, MOIABC
+from multi_objective.algorithms import MOABC, MODE, MOEAD, MOIABC, MOPSO
 from multi_objective.application_point.microgrid_dispatch_model import (
     BOUNDS,
+    DIESEL_EMISSION_FACTOR,
+    GRID_EMISSION_FACTOR,
     PARAMS,
+    TREATMENT_COST,
     evaluate_dispatch,
     objective_function,
 )
@@ -60,12 +63,31 @@ TOURNAMENT_SIZE = env_int("APP_TOURNAMENT_SIZE", 3)
 ELITE_RATE = env_float("APP_ELITE_RATE", 0.25)
 ELIMINATION_RATE = env_float("APP_ELIMINATION_RATE", 0.25)
 ARCHIVE_GUIDANCE_RATE = env_float("APP_ARCHIVE_GUIDANCE_RATE", 0.40)
-ENABLED_ALGORITHMS = env_csv("APP_ALGORITHMS", ["MOIABC","MOABC"])
+ENABLED_ALGORITHMS = env_csv("APP_ALGORITHMS", ["MOIABC", "MOABC", "MOPSO", "MOEA/D", "MO-DE"])
+
+ALGORITHM_COLORS = {
+    "MOIABC": "#d66b5f",
+    "MOABC": "#4e8fc7",
+    "MOPSO": "#a7dce0",
+    "MOEA/D": "#7fa6d9",
+    "MO-DE": "#f1b183",
+}
+ALGORITHM_MARKERS = {
+    "MOIABC": "P",
+    "MOABC": "D",
+    "MOPSO": "^",
+    "MOEA/D": "s",
+    "MO-DE": "o",
+}
 
 ALGORITHM_CONFIGS = {
     "MOIABC": {
         "runner": MOIABC.multi_objective_iabc,
-        "kwargs": {
+        "params": {
+            "bee": BEE,
+            "max_iter": MAX_ITER,
+            "limit": LIMIT,
+            "archive_size": ARCHIVE_SIZE,
             "tournament_size": TOURNAMENT_SIZE,
             "elite_rate": ELITE_RATE,
             "elimination_rate": ELIMINATION_RATE,
@@ -74,13 +96,54 @@ ALGORITHM_CONFIGS = {
     },
     "MOABC": {
         "runner": MOABC.multi_objective_abc,
-        "kwargs": {},
+        "params": {
+            "bee": BEE,
+            "max_iter": MAX_ITER,
+            "limit": LIMIT,
+            "archive_size": ARCHIVE_SIZE,
+        },
+    },
+    "MOPSO": {
+        "runner": MOPSO.mopso,
+        "params": {
+            "swarm_size": BEE,
+            "max_iter": MAX_ITER,
+            "archive_size": ARCHIVE_SIZE,
+            "inertia": 0.4,
+            "cognitive": 1.5,
+            "social": 1.5,
+        },
+    },
+    "MOEA/D": {
+        "runner": MOEAD.moead,
+        "params": {
+            "population_size": BEE,
+            "max_iter": MAX_ITER,
+            "archive_size": ARCHIVE_SIZE,
+            "neighborhood_size": 20,
+            "mutation_factor": 0.5,
+            "crossover_rate": 0.9,
+        },
+    },
+    "MO-DE": {
+        "runner": MODE.mode,
+        "params": {
+            "population_size": BEE,
+            "max_iter": MAX_ITER,
+            "archive_size": ARCHIVE_SIZE,
+            "mutation_factor": 0.5,
+            "crossover_rate": 0.9,
+        },
     },
 }
 
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "SimSun"]
 plt.rcParams["axes.unicode_minus"] = False
 LEGEND_FONT_SIZE = 16
+
+
+def algorithm_dir_name(algorithm_name):
+    return algorithm_name.replace("/", "_").replace("\\", "_")
 
 
 def raw_cost_objectives(archive_solutions):
@@ -155,6 +218,59 @@ def write_pareto_csv(path, archive_solutions, archive_objectives):
                     "solution": " ".join(f"{value:.6f}" for value in solution),
                 }
             )
+
+
+def write_all_run_archives_csv(path, run_results, algorithm_name=None):
+    fieldnames = [
+        "algorithm",
+        "run",
+        "seed",
+        "index",
+        "economic_cost",
+        "environment_cost",
+        "penalty",
+        "penalized_economic_objective",
+        "penalized_environment_objective",
+        "objective_sum",
+        "final_soc",
+        "solution",
+    ]
+    with open(path, "w", newline="", encoding="utf-8-sig") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        for run_result in run_results:
+            current_algorithm = algorithm_name or run_result.get("algorithm", "")
+            for index, (solution, objectives) in enumerate(
+                zip(run_result["archive_solutions"], run_result["archive_objectives"]),
+                start=1,
+            ):
+                dispatch = evaluate_dispatch(solution)
+                writer.writerow(
+                    {
+                        "algorithm": current_algorithm,
+                        "run": run_result["run"],
+                        "seed": run_result["seed"],
+                        "index": index,
+                        "economic_cost": f"{dispatch['economic_cost']:.6f}",
+                        "environment_cost": f"{dispatch['environment_cost']:.6f}",
+                        "penalty": f"{dispatch['penalty']:.6f}",
+                        "penalized_economic_objective": f"{objectives[0]:.6f}",
+                        "penalized_environment_objective": f"{objectives[1]:.6f}",
+                        "objective_sum": f"{np.sum(objectives):.6f}",
+                        "final_soc": f"{dispatch['soc'][-1]:.6f}",
+                        "solution": " ".join(f"{value:.6f}" for value in solution),
+                    }
+                )
+
+
+def write_all_algorithm_archives_csv(path, algorithm_run_results):
+    combined_run_results = []
+    for algorithm_name, run_results in algorithm_run_results.items():
+        for run_result in run_results:
+            item = dict(run_result)
+            item["algorithm"] = algorithm_name
+            combined_run_results.append(item)
+    write_all_run_archives_csv(path, combined_run_results)
 
 
 def write_dispatch_csv(path, solution):
@@ -480,8 +596,6 @@ def plot_algorithm_pareto_comparison(path, algorithm_outputs, reference_solution
             label="经验参考前沿",
         )
 
-    markers = {"MOIABC": "o", "MOABC": "s"}
-    colors = {"MOIABC": "#d66b5f", "MOABC": "#4e8fc7"}
     for algorithm_name, output in algorithm_outputs.items():
         raw_objectives = raw_cost_objectives(output["selected_solutions"])
         plt.scatter(
@@ -489,8 +603,8 @@ def plot_algorithm_pareto_comparison(path, algorithm_outputs, reference_solution
             raw_objectives[:, 1],
             s=28,
             alpha=0.82,
-            marker=markers.get(algorithm_name, "o"),
-            color=colors.get(algorithm_name),
+            marker=ALGORITHM_MARKERS.get(algorithm_name, "o"),
+            color=ALGORITHM_COLORS.get(algorithm_name),
             label=f"{algorithm_name} 外部档案",
         )
         compromise_index = output["compromise_index"]
@@ -499,7 +613,7 @@ def plot_algorithm_pareto_comparison(path, algorithm_outputs, reference_solution
             raw_objectives[compromise_index, 1],
             s=95,
             marker="*",
-            color=colors.get(algorithm_name),
+            color=ALGORITHM_COLORS.get(algorithm_name),
             edgecolor="#222222",
             linewidth=0.5,
             label=f"{algorithm_name} 折中方案",
@@ -516,14 +630,13 @@ def plot_algorithm_pareto_comparison(path, algorithm_outputs, reference_solution
 
 def plot_algorithm_convergence_comparison(path, algorithm_run_results):
     plt.figure(figsize=(10, 6))
-    colors = {"MOIABC": "#d66b5f", "MOABC": "#4e8fc7"}
     for algorithm_name, run_results in algorithm_run_results.items():
         histories = np.asarray([item["history"] for item in run_results], dtype=float)
         iterations = np.arange(histories.shape[1])
         mean_values = np.mean(histories, axis=0)
         min_values = np.min(histories, axis=0)
         max_values = np.max(histories, axis=0)
-        color = colors.get(algorithm_name)
+        color = ALGORITHM_COLORS.get(algorithm_name)
         plt.plot(iterations, mean_values, linewidth=1.8, color=color, label=f"{algorithm_name} 平均值")
         plt.fill_between(iterations, min_values, max_values, color=color, alpha=0.14)
 
@@ -548,12 +661,8 @@ def run_once(task):
     archive_solutions, archive_objectives, history, used_seed = config["runner"](
         objective_function=objective_function,
         bounds=BOUNDS,
-        bee=BEE,
-        max_iter=MAX_ITER,
-        limit=LIMIT,
-        archive_size=ARCHIVE_SIZE,
         seed=seed,
-        **config["kwargs"],
+        **config["params"],
     )
     elapsed_seconds = time.perf_counter() - start_time
     return {
@@ -672,10 +781,16 @@ def build_algorithm_output(algorithm_name, run_results, reference_solutions, ref
         "max_iter": MAX_ITER,
         "limit": LIMIT,
         "configured_archive_size": ARCHIVE_SIZE,
+        "algorithm_parameters": dict(ALGORITHM_CONFIGS[algorithm_name]["params"]),
         "enable_curtailment": PARAMS.enable_curtailment,
         "enable_extra_complexity": PARAMS.enable_extra_complexity,
         "diesel_quadratic_fuel_cost": PARAMS.diesel_quadratic_fuel_cost,
         "diesel_quadratic_emission_cost": PARAMS.diesel_quadratic_emission_cost,
+        "diesel_emission_factor": DIESEL_EMISSION_FACTOR.tolist(),
+        "grid_emission_factor": GRID_EMISSION_FACTOR.tolist(),
+        "treatment_cost": TREATMENT_COST.tolist(),
+        "diesel_environment_unit_cost": float(np.dot(DIESEL_EMISSION_FACTOR, TREATMENT_COST)),
+        "grid_environment_unit_cost": float(np.dot(GRID_EMISSION_FACTOR, TREATMENT_COST)),
         "diesel_ramp_up_kw_per_h": PARAMS.diesel_ramp_up_kw_per_h,
         "diesel_ramp_down_kw_per_h": PARAMS.diesel_ramp_down_kw_per_h,
         "diesel_ramp_up_limit_kw_per_period": PARAMS.diesel_ramp_up_limit_kw,
@@ -736,6 +851,11 @@ def write_algorithm_outputs(output_dir, algorithm_output, reference_solutions, r
     write_metrics_summary_csv(output_dir / "multi_objective_metrics_summary.csv", algorithm_output["metrics_summary"])
     write_convergence_history_csv(output_dir / "multi_objective_convergence_history.csv", algorithm_output["run_results"])
     write_average_convergence_history_csv(output_dir / "multi_objective_average_convergence_history.csv", algorithm_output["run_results"])
+    write_all_run_archives_csv(
+        output_dir / "multi_objective_all_run_archives.csv",
+        algorithm_output["run_results"],
+        algorithm_name=algorithm_name,
+    )
     write_pareto_csv(output_dir / "multi_objective_pareto.csv", selected_solutions, selected_objectives)
     write_pareto_csv(output_dir / "multi_objective_reference_pareto.csv", reference_solutions, reference_objectives)
     write_dispatch_csv(output_dir / "multi_objective_compromise_dispatch.csv", selected_solutions[compromise_index])
@@ -870,7 +990,7 @@ def main():
     }
 
     for algorithm_name, output in algorithm_outputs.items():
-        write_algorithm_outputs(OUTPUT_DIR / algorithm_name, output, reference_solutions, reference_objectives)
+        write_algorithm_outputs(OUTPUT_DIR / algorithm_dir_name(algorithm_name), output, reference_solutions, reference_objectives)
 
     primary_algorithm = select_primary_algorithm(algorithm_names)
     write_algorithm_outputs(
@@ -881,6 +1001,7 @@ def main():
         save_algorithm_plots=False,
     )
     write_algorithm_comparison_csv(OUTPUT_DIR / "microgrid_algorithm_comparison.csv", algorithm_outputs)
+    write_all_algorithm_archives_csv(OUTPUT_DIR / "microgrid_all_algorithm_archives.csv", algorithm_run_results)
     (OUTPUT_DIR / "microgrid_algorithm_comparison_summary.json").write_text(
         json.dumps(
             {

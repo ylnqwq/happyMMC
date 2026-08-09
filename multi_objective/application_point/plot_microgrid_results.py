@@ -29,6 +29,21 @@ OUTPUT_DIR = env_output_dir("APP_PLOT_OUTPUT_DIR", RESULTS_DIR, MODULE_DIR)
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "SimSun", "Arial"]
 plt.rcParams["axes.unicode_minus"] = False
 LEGEND_FONT_SIZE = 16
+ALGORITHM_ORDER = ["MOIABC", "MOABC", "MOPSO", "MOEA/D", "MO-DE"]
+ALGORITHM_COLORS = {
+    "MOIABC": "#d66b5f",
+    "MOABC": "#4e8fc7",
+    "MOPSO": "#a7dce0",
+    "MOEA/D": "#7fa6d9",
+    "MO-DE": "#f1b183",
+}
+ALGORITHM_MARKERS = {
+    "MOIABC": "P",
+    "MOABC": "D",
+    "MOPSO": "^",
+    "MOEA/D": "s",
+    "MO-DE": "o",
+}
 
 
 def read_csv_rows(path):
@@ -49,6 +64,21 @@ def set_common_style(axis):
 
 def algorithm_title_prefix(algorithm_name):
     return "" if algorithm_name is None else f"{algorithm_name} "
+
+
+def algorithm_sort_key(algorithm_name):
+    try:
+        return (0, ALGORITHM_ORDER.index(algorithm_name))
+    except ValueError:
+        return (1, algorithm_name)
+
+
+def read_algorithm_name(input_dir):
+    summary_path = input_dir / "multi_objective_summary.json"
+    if summary_path.exists():
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        return summary.get("algorithm", input_dir.name)
+    return input_dir.name.replace("MOEA_D", "MOEA/D")
 
 
 def convergence_main_start_index(iterations, mean_values, max_values):
@@ -302,12 +332,12 @@ def plot_selected_history(history_rows, summary_path, path):
 
 
 def plot_igd_igd_plus_comparison(metric_sets, path):
-    algorithms = list(metric_sets)
+    algorithms = sorted(metric_sets, key=algorithm_sort_key)
     metrics = [
         ("IGD", "IGD 指标值"),
         ("IGD+", "IGD+ 指标值"),
     ]
-    colors = ["#d66b5f", "#4e8fc7", "#59a14f", "#b07aa1"]
+    colors = [ALGORITHM_COLORS.get(algorithm_name, "#9aa1a8") for algorithm_name in algorithms]
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 5), sharey=False)
     for axis, (metric_name, ylabel) in zip(axes, metrics):
@@ -367,20 +397,19 @@ def plot_algorithm_pareto_comparison(pareto_sets, reference_rows, path):
             label="经验参考前沿",
         )
 
-    markers = {"MOIABC": "o", "MOABC": "s"}
-    colors = {"MOIABC": "#d66b5f", "MOABC": "#4e8fc7"}
-    for algorithm_name, rows in pareto_sets.items():
+    for algorithm_name in sorted(pareto_sets, key=algorithm_sort_key):
+        rows = pareto_sets[algorithm_name]
         economic_costs = np.array([float(row["economic_cost"]) for row in rows], dtype=float)
         environment_costs = np.array([float(row["environment_cost"]) for row in rows], dtype=float)
         compromise_mask = np.array([row.get("is_compromise", "0") == "1" for row in rows], dtype=bool)
-        color = colors.get(algorithm_name)
+        color = ALGORITHM_COLORS.get(algorithm_name)
 
         axis.scatter(
             economic_costs,
             environment_costs,
             s=28,
             alpha=0.82,
-            marker=markers.get(algorithm_name, "o"),
+            marker=ALGORITHM_MARKERS.get(algorithm_name, "o"),
             color=color,
             label=f"{algorithm_name} 外部档案",
         )
@@ -406,9 +435,9 @@ def plot_algorithm_pareto_comparison(pareto_sets, reference_rows, path):
 
 
 def plot_algorithm_convergence_comparison(convergence_sets, path):
-    colors = {"MOIABC": "#d66b5f", "MOABC": "#4e8fc7"}
     series = []
-    for algorithm_name, rows in convergence_sets.items():
+    for algorithm_name in sorted(convergence_sets, key=algorithm_sort_key):
+        rows = convergence_sets[algorithm_name]
         iterations = np.array([float(row["iteration"]) for row in rows], dtype=float)
         mean_values = np.array([float(row["mean_best_sum"]) for row in rows], dtype=float)
         min_values = np.array([float(row["min_best_sum"]) for row in rows], dtype=float)
@@ -422,7 +451,7 @@ def plot_algorithm_convergence_comparison(convergence_sets, path):
                 "min": min_values,
                 "max": max_values,
                 "start_index": start_index,
-                "color": colors.get(algorithm_name),
+                "color": ALGORITHM_COLORS.get(algorithm_name),
             }
         )
 
@@ -530,11 +559,12 @@ def main():
         for path in sorted(RESULTS_DIR.iterdir())
         if path.is_dir() and has_result_set(path)
     ]
+    algorithm_dirs = sorted(algorithm_dirs, key=lambda path: algorithm_sort_key(read_algorithm_name(path)))
 
     for input_dir in algorithm_dirs:
-        algorithm_name = input_dir.name
+        algorithm_name = read_algorithm_name(input_dir)
         if has_result_set(input_dir):
-            output_dir = OUTPUT_DIR / algorithm_name
+            output_dir = OUTPUT_DIR / input_dir.name
             plot_result_set(input_dir, output_dir, algorithm_name=algorithm_name)
             plotted_dirs.append(input_dir)
         metrics_path = input_dir / "multi_objective_metrics.csv"

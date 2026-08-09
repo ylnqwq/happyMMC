@@ -44,6 +44,16 @@ ALGORITHM_ORDER = [
     "ISSA",
     "MOIABC",
 ]
+BOXPLOT_FALLBACK_ORDER = [
+    "MOIABC",
+    "MOABC",
+    "MOPSO",
+    "MOEA/D",
+    "MO-DE",
+    "Zhou-IMOABC",
+    "Yang-IGWO",
+    "ISSA",
+]
 METRICS = ["igd", "igd_plus"]
 COLORS = {
     "MO-DE": "#f1b183",
@@ -314,6 +324,57 @@ def algorithm_order(rows):
     return ordered
 
 
+def boxplot_algorithm_order(rows, metric=None, metrics=None):
+    present = {row["algorithm"] for row in rows}
+    fallback = {algorithm: index for index, algorithm in enumerate(BOXPLOT_FALLBACK_ORDER)}
+
+    def metric_stats(algorithm, metric_name):
+        values = np.asarray(
+            [float(row[metric_name]) for row in rows if row["algorithm"] == algorithm],
+            dtype=float,
+        )
+        values = values[np.isfinite(values)]
+        if len(values) == 0:
+            return np.inf, np.inf
+        return float(np.median(values)), float(np.mean(values))
+
+    if metrics:
+        rank_sums = {algorithm: 0.0 for algorithm in present}
+        for metric_name in metrics:
+            ordered = sorted(
+                present,
+                key=lambda algorithm: (
+                    *metric_stats(algorithm, metric_name),
+                    fallback.get(algorithm, len(fallback)),
+                    algorithm,
+                ),
+            )
+            for rank, algorithm in enumerate(ordered, start=1):
+                rank_sums[algorithm] += rank
+        return sorted(
+            present,
+            key=lambda algorithm: (
+                rank_sums[algorithm] / len(metrics),
+                fallback.get(algorithm, len(fallback)),
+                algorithm,
+            ),
+        )
+
+    if metric:
+        return sorted(
+            present,
+            key=lambda algorithm: (
+                *metric_stats(algorithm, metric),
+                fallback.get(algorithm, len(fallback)),
+                algorithm,
+            ),
+        )
+
+    ordered = [algorithm for algorithm in BOXPLOT_FALLBACK_ORDER if algorithm in present]
+    ordered.extend(sorted(present - set(ordered)))
+    return ordered
+
+
 def summarize_rows(metric_rows):
     summary = []
     grouped = {}
@@ -535,11 +596,13 @@ def main():
     for metric in METRICS:
         suffix = METRIC_SPECS[metric]["suffix"]
         boxplot_png = output_dir / f"mo_comparison_{suffix}_boxplot.png"
-        draw_metric_boxplot(metric_rows, algorithms, metric, boxplot_png)
+        boxplot_algorithms = boxplot_algorithm_order(metric_rows, metric=metric)
+        draw_metric_boxplot(metric_rows, boxplot_algorithms, metric, boxplot_png)
         outputs.append(boxplot_png)
 
     overview_boxplot = output_dir / "mo_comparison_igd_igd_plus_boxplot.png"
-    draw_igd_boxplot_overview(metric_rows, algorithms, overview_boxplot)
+    boxplot_algorithms = boxplot_algorithm_order(metric_rows, metrics=METRICS)
+    draw_igd_boxplot_overview(metric_rows, boxplot_algorithms, overview_boxplot)
     outputs.append(overview_boxplot)
 
     for metric in METRICS:
@@ -554,7 +617,7 @@ def main():
             table_png,
             show_title=False,
             title_prefix="表X 多目标算法对比实验结果",
-            show_note=True,
+            show_note=False,
             cell_suffixes=suffixes,
             note_suffix="符号 +、=、- 分别表示 MOIABC 的性能优于、相近于或劣于对应对比算法。",
         )

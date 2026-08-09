@@ -59,7 +59,7 @@ BUY_PRICE = expand_hourly_profile(BASE_BUY_PRICE)
 SELL_PRICE = expand_hourly_profile(BASE_SELL_PRICE)
 HOURS = len(LOAD_KW)
 
-DIESEL_EMISSION_FACTOR = np.array([0.724, 0.0036, 0.0015], dtype=float)
+DIESEL_EMISSION_FACTOR = np.array([1.120, 0.0050, 0.0022], dtype=float)
 GRID_EMISSION_FACTOR = np.array([0.997, 0.0045, 0.0018], dtype=float)
 TREATMENT_COST = np.array([0.023, 6.0, 8.0], dtype=float)
 

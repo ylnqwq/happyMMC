@@ -5,6 +5,9 @@ import csv
 import sys
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 
 MODULE_DIR = Path(__file__).resolve().parent
@@ -156,7 +159,15 @@ def read_average_rank_rows(input_dir):
 def draw_average_rank_outputs(input_dir, output_dir, metrics):
     rows = read_average_rank_rows(input_dir)
     outputs = []
-    for metric in metrics:
+    if "hypervolume" in metrics and "spacing" in metrics:
+        outputs.extend(draw_hv_spacing_rank_output(rows, output_dir))
+
+    individual_metrics = [
+        metric
+        for metric in metrics
+        if metric not in {"hypervolume", "spacing"}
+    ]
+    for metric in individual_metrics:
         suffix = METRIC_SPECS[metric]["suffix"]
         metric_rows = [row for row in rows if row["metric"] == metric]
         metric_rows.sort(key=lambda item: (item["average_rank"], -item["best_count"], item["label"]))
@@ -172,6 +183,89 @@ def draw_average_rank_outputs(input_dir, output_dir, metrics):
         write_friedman_rank_csv(metric_rows, output_csv)
         outputs.extend([output_png, output_csv])
     return outputs
+
+
+def draw_hv_spacing_rank_output(rows, output_dir):
+    metric_rows = {
+        metric: {row["algorithm"]: row for row in rows if row["metric"] == metric}
+        for metric in ("hypervolume", "spacing")
+    }
+    algorithms = sorted(
+        set(metric_rows["hypervolume"]) & set(metric_rows["spacing"]),
+        key=lambda algorithm: (
+            (
+                metric_rows["hypervolume"][algorithm]["average_rank"]
+                + metric_rows["spacing"][algorithm]["average_rank"]
+            )
+            / 2.0,
+            algorithm,
+        ),
+    )
+    if not algorithms:
+        return []
+
+    output_png = output_dir / "mo_comparison_friedman_hv_spacing_rank.png"
+    output_csv = output_png.with_suffix(".csv")
+    csv_rows = []
+    for algorithm in algorithms:
+        hv_row = metric_rows["hypervolume"][algorithm]
+        spacing_row = metric_rows["spacing"][algorithm]
+        csv_rows.append(
+            {
+                "algorithm": algorithm,
+                "hv_average_rank": hv_row["average_rank"],
+                "spacing_average_rank": spacing_row["average_rank"],
+                "mean_average_rank": (hv_row["average_rank"] + spacing_row["average_rank"]) / 2.0,
+                "hv_best_count": hv_row["best_count"],
+                "spacing_best_count": spacing_row["best_count"],
+                "benchmark_count": hv_row["benchmark_count"],
+            }
+        )
+
+    with output_csv.open("w", encoding="utf-8-sig", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(csv_rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(csv_rows)
+
+    font_family = ["Times New Roman", "SimSun"]
+    x = np.arange(len(algorithms), dtype=float)
+    width = 0.34
+    hv_values = [metric_rows["hypervolume"][algorithm]["average_rank"] for algorithm in algorithms]
+    spacing_values = [metric_rows["spacing"][algorithm]["average_rank"] for algorithm in algorithms]
+
+    fig, ax = plt.subplots(figsize=(7.6, 4.4), dpi=300)
+    hv_bars = ax.bar(x - width / 2, hv_values, width, label="HV", color="#7fa6d9", edgecolor="#606060", linewidth=0.7)
+    spacing_bars = ax.bar(x + width / 2, spacing_values, width, label="Spacing", color="#f1b183", edgecolor="#606060", linewidth=0.7)
+    ax.set_ylabel("平均排名", fontsize=11, family=font_family)
+    ax.set_xlabel("算法", fontsize=11, family=font_family)
+    ax.set_xticks(x)
+    ax.set_xticklabels(algorithms, fontsize=8.5, family=font_family)
+    ax.grid(axis="y", linestyle="--", linewidth=0.6, alpha=0.35)
+    ax.set_axisbelow(True)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(axis="y", labelsize=9.2)
+    ax.legend(frameon=False, prop={"family": font_family}, fontsize=9.2)
+
+    max_value = max(hv_values + spacing_values)
+    ax.set_ylim(0, max_value * 1.22)
+    for bars in (hv_bars, spacing_bars):
+        for bar in bars:
+            value = bar.get_height()
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                value + max_value * 0.025,
+                f"{value:.2f}",
+                ha="center",
+                va="bottom",
+                fontsize=8.2,
+                family=font_family,
+            )
+
+    fig.tight_layout()
+    fig.savefig(output_png, bbox_inches="tight", pad_inches=0.06)
+    plt.close(fig)
+    return [output_png, output_csv]
 
 
 def wilcoxon_sign(row):
@@ -253,15 +347,18 @@ def best_count_for_algorithm(summary_rows, benchmark_ids, algorithms, metric):
     return counts
 
 
-def metric_algorithm_order(summary_rows, benchmark_ids, algorithms, metric):
+def metric_algorithm_order(summary_rows, benchmark_ids, algorithms, metric, reference_algorithm="MOIABC"):
     if metric != "best_sum":
         return algorithms
     counts = best_count_for_algorithm(summary_rows, benchmark_ids, algorithms, metric)
     original_position = {algorithm: index for index, algorithm in enumerate(algorithms)}
-    return sorted(
-        algorithms,
+    ordered = sorted(
+        [algorithm for algorithm in algorithms if algorithm != reference_algorithm],
         key=lambda algorithm: (-counts[algorithm], original_position[algorithm]),
     )
+    if reference_algorithm in algorithms:
+        return [reference_algorithm] + ordered
+    return ordered
 
 
 def main():

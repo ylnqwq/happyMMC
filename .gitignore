@@ -21,6 +21,8 @@
 /multi_objective/mo_comparison_results_improved_algorithms_*/
 /multi_objective/application_point/results/*
 !/multi_objective/application_point/results/.gitkeep
+/旧结果/
+/multi_objective/旧结果/
 /_extracted_refs/
 
 # Python cache

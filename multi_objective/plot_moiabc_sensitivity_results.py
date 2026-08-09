@@ -1142,6 +1142,86 @@ def sensitivity_rank_rows(summary_rows, metric, sort_by="best_count"):
     return rows
 
 
+def draw_sensitivity_hv_spacing_rank_output(summary_rows, output_dir, prefix, top_k):
+    hv_rows = {row["algorithm"]: row for row in sensitivity_rank_rows(summary_rows, "hypervolume", sort_by="average_rank")}
+    spacing_rows = {row["algorithm"]: row for row in sensitivity_rank_rows(summary_rows, "spacing", sort_by="average_rank")}
+    algorithms = sorted(
+        set(hv_rows) & set(spacing_rows),
+        key=lambda algorithm: (
+            (hv_rows[algorithm]["average_rank"] + spacing_rows[algorithm]["average_rank"]) / 2.0,
+            hv_rows[algorithm]["label"],
+        ),
+    )[:top_k]
+    if not algorithms:
+        return []
+
+    output_png = output_dir / f"{prefix}_friedman_hv_spacing_rank.png"
+    output_csv = output_png.with_suffix(".csv")
+    csv_rows = []
+    for algorithm in algorithms:
+        hv_row = hv_rows[algorithm]
+        spacing_row = spacing_rows[algorithm]
+        csv_rows.append(
+            {
+                "algorithm": algorithm,
+                "label": hv_row["label"],
+                "hv_average_rank": hv_row["average_rank"],
+                "spacing_average_rank": spacing_row["average_rank"],
+                "mean_average_rank": (hv_row["average_rank"] + spacing_row["average_rank"]) / 2.0,
+                "hv_best_count": hv_row["best_count"],
+                "spacing_best_count": spacing_row["best_count"],
+                "benchmark_count": hv_row["benchmark_count"],
+            }
+        )
+
+    with output_csv.open("w", encoding="utf-8-sig", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(csv_rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(csv_rows)
+
+    labels = [row["label"] for row in csv_rows]
+    x = np.arange(len(labels), dtype=float)
+    width = 0.34
+    hv_values = [row["hv_average_rank"] for row in csv_rows]
+    spacing_values = [row["spacing_average_rank"] for row in csv_rows]
+    max_value = max(hv_values + spacing_values)
+    x_label = "外部档案引导率" if sensitivity_parameter_columns(summary_rows) == ("archive_rate",) else "参数组合"
+    font_family = ["Times New Roman", "SimSun"]
+
+    fig, ax = plt.subplots(figsize=(7.6, 4.4), dpi=300)
+    hv_bars = ax.bar(x - width / 2, hv_values, width, label="HV", color="#7fa6d9", edgecolor="#606060", linewidth=0.7)
+    spacing_bars = ax.bar(x + width / 2, spacing_values, width, label="Spacing", color="#f1b183", edgecolor="#606060", linewidth=0.7)
+    ax.set_ylabel("平均排名", fontsize=11, family=font_family)
+    ax.set_xlabel(x_label, fontsize=11, family=font_family)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=8.5, family=font_family)
+    ax.set_ylim(0, max_value * 1.22)
+    ax.grid(axis="y", linestyle="--", linewidth=0.6, alpha=0.35)
+    ax.set_axisbelow(True)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(axis="y", labelsize=9.2)
+    ax.legend(frameon=False, prop={"family": font_family}, fontsize=9.2)
+
+    for bars in (hv_bars, spacing_bars):
+        for bar in bars:
+            value = bar.get_height()
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                value + max_value * 0.025,
+                f"{value:.2f}",
+                ha="center",
+                va="bottom",
+                fontsize=8.2,
+                family=font_family,
+            )
+
+    fig.tight_layout()
+    fig.savefig(output_png, bbox_inches="tight", pad_inches=0.06)
+    plt.close(fig)
+    return [output_png, output_csv]
+
+
 def draw_sensitivity_rank_outputs(args):
     input_dir = args.input_dir
     output_dir = args.output_dir or input_dir
@@ -1166,16 +1246,23 @@ def draw_sensitivity_rank_outputs(args):
 
     outputs = []
     all_rank_rows = []
+    combine_hv_spacing = "hypervolume" in metrics and "spacing" in metrics
+    if combine_hv_spacing:
+        outputs.extend(draw_sensitivity_hv_spacing_rank_output(summary_rows, output_dir, prefix, args.top_k))
+
     for metric in metrics:
         suffix = METRIC_SPECS[metric]["suffix"]
-        rank_rows = sensitivity_rank_rows(summary_rows, metric, sort_by="average_rank")[: args.top_k]
+        full_rank_rows = sensitivity_rank_rows(summary_rows, metric, sort_by="average_rank")
+        all_rank_rows.extend(full_rank_rows)
+        if combine_hv_spacing and metric in {"hypervolume", "spacing"}:
+            continue
+        rank_rows = full_rank_rows[: args.top_k]
         output_png = output_dir / f"{prefix}_friedman_{suffix}_rank.png"
         output_csv = output_png.with_suffix(".csv")
         x_label = "外部档案引导率" if sensitivity_parameter_columns(summary_rows) == ("archive_rate",) else "参数组合"
         draw_friedman_rank_bar(rank_rows, output_png, show_title=False, x_label=x_label)
         write_friedman_rank_csv(rank_rows, output_csv)
         outputs.extend([output_png, output_csv])
-        all_rank_rows.extend(rank_rows)
 
     output_csv = output_dir / f"{prefix}_friedman_all_ranks.csv"
     write_friedman_rank_csv(all_rank_rows, output_csv)

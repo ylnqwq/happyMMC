@@ -42,9 +42,11 @@ from multi_objective.mo_utils import (
     spacing_metric,
 )
 from multi_objective.application_point.plot_microgrid_results import (
+    convergence_main_start_index,
     plot_cost_breakdown,
-    plot_igd_igd_plus_comparison,
+    plot_igd_comparison_figures,
     plot_power_dispatch,
+    plot_storage_dispatch,
 )
 
 
@@ -566,7 +568,7 @@ def plot_pareto(path, selected_solutions, selected_objectives, reference_solutio
     plt.xlabel("经济成本 / 元")
     plt.ylabel("环境成本 / 元")
     plt.grid(True, linestyle="--", alpha=0.35)
-    plt.legend(fontsize=LEGEND_FONT_SIZE)
+    plt.legend(fontsize=14)
     plt.tight_layout()
     plt.savefig(path, dpi=180)
     plt.close()
@@ -584,7 +586,7 @@ def plot_history(path, history, algorithm_name="MOIABC"):
 
 
 def plot_algorithm_pareto_comparison(path, algorithm_outputs, reference_solutions):
-    plt.figure(figsize=(8, 6))
+    plt.figure(figsize=(8.4, 7.7))
     if reference_solutions is not None and len(reference_solutions) > 0:
         reference_raw = raw_cost_objectives(reference_solutions)
         plt.scatter(
@@ -622,30 +624,56 @@ def plot_algorithm_pareto_comparison(path, algorithm_outputs, reference_solution
     plt.xlabel("经济成本 / 元")
     plt.ylabel("环境成本 / 元")
     plt.grid(True, linestyle="--", alpha=0.35)
-    plt.legend(fontsize=LEGEND_FONT_SIZE)
+    plt.legend(fontsize=12, ncol=2, loc="upper left", frameon=True)
     plt.tight_layout()
     plt.savefig(path, dpi=180)
     plt.close()
 
 
 def plot_algorithm_convergence_comparison(path, algorithm_run_results):
-    plt.figure(figsize=(10, 6))
+    series = []
     for algorithm_name, run_results in algorithm_run_results.items():
         histories = np.asarray([item["history"] for item in run_results], dtype=float)
         iterations = np.arange(histories.shape[1])
         mean_values = np.mean(histories, axis=0)
         min_values = np.min(histories, axis=0)
         max_values = np.max(histories, axis=0)
-        color = ALGORITHM_COLORS.get(algorithm_name)
-        plt.plot(iterations, mean_values, linewidth=1.8, color=color, label=f"{algorithm_name} 平均值")
-        plt.fill_between(iterations, min_values, max_values, color=color, alpha=0.14)
+        start_index = convergence_main_start_index(iterations, mean_values, max_values)
+        series.append(
+            {
+                "name": algorithm_name,
+                "iterations": iterations,
+                "mean": mean_values,
+                "min": min_values,
+                "max": max_values,
+                "start_index": start_index,
+                "color": ALGORITHM_COLORS.get(algorithm_name),
+            }
+        )
 
-    plt.xlabel("迭代次数 / 次")
-    plt.ylabel("最优目标和")
-    plt.grid(True, linestyle="--", alpha=0.35)
-    plt.legend(fontsize=LEGEND_FONT_SIZE)
-    plt.tight_layout()
-    plt.savefig(path, dpi=180)
+    final_iteration = max(float(item["iterations"][-1]) for item in series)
+    fig, axis = plt.subplots(figsize=(10, 7.2))
+    main_y_values = []
+    for item in series:
+        iterations = item["iterations"]
+        mask = np.ones_like(iterations, dtype=bool)
+        color = item["color"]
+        axis.plot(iterations[mask], item["mean"][mask], linewidth=1.8, color=color, label=f"{item['name']} 平均值")
+        axis.fill_between(iterations[mask], item["min"][mask], item["max"][mask], color=color, alpha=0.14, label=f"{item['name']} 范围")
+        main_y_values.extend(item["mean"][mask])
+        main_y_values.extend(item["min"][mask])
+        main_y_values.extend(item["max"][mask])
+
+    main_y_values = np.array([value for value in main_y_values if value > 0.0], dtype=float)
+    axis.set_xlim(0, final_iteration)
+    axis.set_yscale("log")
+    axis.set_ylim(float(np.min(main_y_values)) * 0.75, 1.0e9)
+    axis.set_xlabel("迭代次数 / 次")
+    axis.set_ylabel("最优目标和")
+    axis.grid(True, linestyle="--", alpha=0.35)
+    axis.legend(fontsize=12, loc="upper center", ncol=5, frameon=True)
+    fig.tight_layout()
+    fig.savefig(path, dpi=180)
     plt.close()
 
 
@@ -864,8 +892,16 @@ def write_algorithm_outputs(output_dir, algorithm_output, reference_solutions, r
 
     if SAVE_PLOTS and save_algorithm_plots:
         power_rows = read_numeric_csv(output_dir / "compromise_power_curves.csv")
+        soc_rows = read_numeric_csv(output_dir / "compromise_soc_curve.csv")
         plot_cost_breakdown(power_rows, output_dir / "compromise_cost_breakdown.png", algorithm_name=algorithm_name)
         plot_power_dispatch(power_rows, output_dir / "compromise_power_dispatch.png", algorithm_name=algorithm_name)
+        if algorithm_name == "MOIABC":
+            plot_storage_dispatch(
+                power_rows,
+                soc_rows,
+                output_dir / "compromise_storage_dispatch.png",
+                algorithm_name=algorithm_name,
+            )
 
 
 def write_algorithm_comparison_csv(path, algorithm_outputs):
@@ -1024,9 +1060,9 @@ def main():
             OUTPUT_DIR / "algorithm_average_convergence_comparison.png",
             algorithm_run_results,
         )
-        plot_igd_igd_plus_comparison(
+        plot_igd_comparison_figures(
             {name: output["metric_rows"] for name, output in algorithm_outputs.items()},
-            OUTPUT_DIR / "algorithm_igd_igd_plus_comparison.png",
+            OUTPUT_DIR,
         )
 
     print("=" * 80)

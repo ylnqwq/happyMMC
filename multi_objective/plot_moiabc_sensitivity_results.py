@@ -37,6 +37,16 @@ ABLATION_ALGORITHM_LABELS = {
     "MOIABC-no-worst-elimination": "MOIABC-NW",
     "MOABC-equivalent": "MOABC",
 }
+ABLATION_ALGORITHM_COLORS = {
+    "MOIABC": "#d66b5f",
+    "MOIABC-no-good-point-init": "#4e8fc7",
+    "MOIABC-no-tournament-selection": "#59a14f",
+    "MOIABC-no-archive-guidance": "#8b6bb8",
+    "MOIABC-no-elite-enhancement": "#f1b183",
+    "MOIABC-no-adaptive-elimination": "#7fa6d9",
+    "MOIABC-no-worst-elimination": "#a7dce0",
+    "MOABC-equivalent": "#9aa1a8",
+}
 
 METRIC_SPECS = {
     "hypervolume": {
@@ -1299,6 +1309,38 @@ def ablation_cell_suffixes(input_dir, reference_algorithm="MOIABC"):
     return suffixes
 
 
+def ablation_wilcoxon_footer_values(input_dir, algorithms, metric, reference_algorithm="MOIABC"):
+    try:
+        rows = read_filtered_wilcoxon_rows(input_dir)
+    except FileNotFoundError:
+        return None
+
+    counts = {
+        algorithm: {"+": 0, "=": 0, "-": 0}
+        for algorithm in algorithms
+        if algorithm != reference_algorithm
+    }
+    for row in rows:
+        if row["metric"] != metric or row["improved_algorithm"] != reference_algorithm:
+            continue
+        base_algorithm = row["base_algorithm"]
+        if base_algorithm not in counts:
+            continue
+        counts[base_algorithm][wilcoxon_sign(row)] += 1
+
+    values = []
+    for algorithm in algorithms:
+        if algorithm == reference_algorithm:
+            values.append("---")
+            continue
+        algorithm_counts = counts.get(algorithm)
+        if algorithm_counts is None:
+            values.append("")
+        else:
+            values.append(f"{algorithm_counts['+']}/{algorithm_counts['=']}/{algorithm_counts['-']}")
+    return values
+
+
 def ablation_effect_rows(wilcoxon_rows, algorithms):
     rows = []
     variants = [algorithm for algorithm in algorithms if algorithm != "MOIABC"]
@@ -1457,6 +1499,188 @@ def draw_ablation_effect_table(rows, output_path, show_title=True):
     plt.close(fig)
 
 
+def draw_ablation_metric_boxplot(detail_rows, algorithms, metric, output_path, axis=None):
+    own_axis = axis is None
+    if own_axis:
+        fig, axis = plt.subplots(figsize=(9.6, 5.2), dpi=300)
+    else:
+        fig = axis.figure
+
+    labels = [ABLATION_ALGORITHM_LABELS.get(algorithm, algorithm) for algorithm in algorithms]
+    data = []
+    colors = []
+    for algorithm in algorithms:
+        values = [
+            to_float(row[metric])
+            for row in detail_rows
+            if row.get("variant") == algorithm and row.get(metric, "") != ""
+        ]
+        values = np.asarray(values, dtype=float)
+        values = np.where(values <= 0.0, 1.0e-12, values)
+        data.append(values)
+        colors.append(ABLATION_ALGORITHM_COLORS.get(algorithm, "#9aa1a8"))
+
+    box = axis.boxplot(
+        data,
+        labels=labels,
+        patch_artist=True,
+        showmeans=True,
+        meanprops={"marker": "D", "markerfacecolor": "#222222", "markeredgecolor": "#222222", "markersize": 3.8},
+        medianprops={"color": "#222222", "linewidth": 1.1},
+        whiskerprops={"linewidth": 0.9},
+        capprops={"linewidth": 0.9},
+        flierprops={"marker": "o", "markersize": 2.0, "markerfacecolor": "#777777", "markeredgecolor": "none", "alpha": 0.28},
+    )
+    for patch, color in zip(box["boxes"], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.34)
+        patch.set_edgecolor(color)
+
+    for index, values in enumerate(data, start=1):
+        if len(values) == 0:
+            continue
+        sample = values if len(values) <= 160 else values[np.linspace(0, len(values) - 1, 160, dtype=int)]
+        jitter = np.linspace(-0.10, 0.10, len(sample)) if len(sample) > 1 else np.array([0.0])
+        axis.scatter(
+            np.full(len(sample), index, dtype=float) + jitter,
+            sample,
+            s=5,
+            alpha=0.18,
+            color=colors[index - 1],
+            edgecolor="none",
+        )
+
+    metric_label = METRIC_SPECS[metric]["label"]
+    axis.set_yscale("log")
+    axis.set_xlabel("算法")
+    axis.set_ylabel(f"{metric_label} 指标值")
+    axis.grid(True, axis="y", linestyle="--", linewidth=0.6, alpha=0.35)
+    axis.spines["top"].set_visible(False)
+    axis.spines["right"].set_visible(False)
+    axis.tick_params(axis="x", labelrotation=18)
+
+    if own_axis:
+        fig.tight_layout()
+        fig.savefig(output_path, bbox_inches="tight", pad_inches=0.08)
+        plt.close(fig)
+
+
+def draw_ablation_igd_boxplots(input_dir, output_dir, algorithms):
+    detail_path = input_dir / "moiabc_ablation_detail_results.csv"
+    if not detail_path.exists():
+        return []
+
+    detail_rows = [
+        row
+        for row in read_csv_rows(detail_path)
+        if row.get("benchmark_id") not in EXCLUDED_DUPLICATE_BENCHMARK_IDS
+    ]
+    outputs = []
+    for metric in ["igd", "igd_plus"]:
+        output_png = output_dir / f"moiabc_ablation_{METRIC_SPECS[metric]['suffix']}_boxplot.png"
+        draw_ablation_metric_boxplot(detail_rows, algorithms, metric, output_png)
+        outputs.append(output_png)
+
+    overview_png = output_dir / "moiabc_ablation_igd_igd_plus_boxplot.png"
+    fig, axes = plt.subplots(1, 2, figsize=(14.0, 5.2), dpi=300)
+    draw_ablation_metric_boxplot(detail_rows, algorithms, "igd", None, axis=axes[0])
+    draw_ablation_metric_boxplot(detail_rows, algorithms, "igd_plus", None, axis=axes[1])
+    fig.tight_layout()
+    fig.savefig(overview_png, bbox_inches="tight", pad_inches=0.08)
+    plt.close(fig)
+    outputs.append(overview_png)
+    return outputs
+
+
+def draw_ablation_hv_spacing_rank_output(summary_rows, benchmark_ids, algorithms, output_dir):
+    hv_rows = {
+        row["algorithm"]: row
+        for row in friedman_rank_rows(summary_rows, benchmark_ids, algorithms, "hypervolume")
+    }
+    spacing_rows = {
+        row["algorithm"]: row
+        for row in friedman_rank_rows(summary_rows, benchmark_ids, algorithms, "spacing")
+    }
+    ordered_algorithms = sorted(
+        set(hv_rows) & set(spacing_rows),
+        key=lambda algorithm: (
+            (hv_rows[algorithm]["average_rank"] + spacing_rows[algorithm]["average_rank"]) / 2.0,
+            ABLATION_ALGORITHM_ORDER.index(algorithm) if algorithm in ABLATION_ALGORITHM_ORDER else len(ABLATION_ALGORITHM_ORDER),
+        ),
+    )
+    if not ordered_algorithms:
+        return []
+
+    output_png = output_dir / "moiabc_ablation_friedman_hv_spacing_rank.png"
+    output_csv = output_png.with_suffix(".csv")
+    csv_rows = []
+    for algorithm in ordered_algorithms:
+        hv_row = hv_rows[algorithm]
+        spacing_row = spacing_rows[algorithm]
+        csv_rows.append(
+            {
+                "algorithm": algorithm,
+                "label": hv_row["label"],
+                "hv_average_rank": hv_row["average_rank"],
+                "spacing_average_rank": spacing_row["average_rank"],
+                "mean_average_rank": (hv_row["average_rank"] + spacing_row["average_rank"]) / 2.0,
+                "hv_best_count": hv_row["best_count"],
+                "spacing_best_count": spacing_row["best_count"],
+                "benchmark_count": hv_row["benchmark_count"],
+                "hv_friedman_statistic": hv_row["friedman_statistic"],
+                "hv_p_value": hv_row["p_value"],
+                "spacing_friedman_statistic": spacing_row["friedman_statistic"],
+                "spacing_p_value": spacing_row["p_value"],
+            }
+        )
+
+    with output_csv.open("w", encoding="utf-8-sig", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(csv_rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(csv_rows)
+
+    labels = [row["label"] for row in csv_rows]
+    x = np.arange(len(labels), dtype=float)
+    width = 0.34
+    hv_values = [row["hv_average_rank"] for row in csv_rows]
+    spacing_values = [row["spacing_average_rank"] for row in csv_rows]
+    max_value = max(hv_values + spacing_values)
+    font_family = ["Times New Roman", "SimSun"]
+
+    fig, ax = plt.subplots(figsize=(9.2, 4.6), dpi=300)
+    hv_bars = ax.bar(x - width / 2, hv_values, width, label="HV", color="#7fa6d9", edgecolor="#606060", linewidth=0.7)
+    spacing_bars = ax.bar(x + width / 2, spacing_values, width, label="Spacing", color="#f1b183", edgecolor="#606060", linewidth=0.7)
+    ax.set_ylabel("平均排名", fontsize=11, family=font_family)
+    ax.set_xlabel("消融变体", fontsize=11, family=font_family)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=8.5, family=font_family, rotation=18)
+    ax.set_ylim(0, max_value * 1.22)
+    ax.grid(axis="y", linestyle="--", linewidth=0.6, alpha=0.35)
+    ax.set_axisbelow(True)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(axis="y", labelsize=9.2)
+    ax.legend(frameon=False, prop={"family": font_family}, fontsize=9.2)
+
+    for bars in (hv_bars, spacing_bars):
+        for bar in bars:
+            value = bar.get_height()
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                value + max_value * 0.025,
+                f"{value:.2f}",
+                ha="center",
+                va="bottom",
+                fontsize=8.2,
+                family=font_family,
+            )
+
+    fig.tight_layout()
+    fig.savefig(output_png, bbox_inches="tight", pad_inches=0.06)
+    plt.close(fig)
+    return [output_png, output_csv]
+
+
 def draw_ablation_outputs(args):
     input_dir = args.input_dir if args.input_dir != DEFAULT_INPUT_DIR else DEFAULT_ABLATION_INPUT_DIR
     output_dir = args.output_dir or input_dir
@@ -1481,15 +1705,20 @@ def draw_ablation_outputs(args):
             draw_sensitivity_rank_outputs(args)
             return
         all_rank_rows = []
+        combine_hv_spacing = "hypervolume" in metrics and "spacing" in metrics
+        if combine_hv_spacing:
+            outputs.extend(draw_ablation_hv_spacing_rank_output(summary_rows, benchmark_ids, algorithms, output_dir))
         for metric in metrics:
-            suffix = METRIC_SPECS[metric]["suffix"]
             rank_rows = friedman_rank_rows(summary_rows, benchmark_ids, algorithms, metric)
+            all_rank_rows.extend(rank_rows)
+            if combine_hv_spacing and metric in {"hypervolume", "spacing"}:
+                continue
+            suffix = METRIC_SPECS[metric]["suffix"]
             output_png = output_dir / f"moiabc_ablation_friedman_{suffix}_rank.png"
             output_csv = output_png.with_suffix(".csv")
             draw_friedman_rank_bar(rank_rows, output_png, show_title=False)
             write_friedman_rank_csv(rank_rows, output_csv)
             outputs.extend([output_png, output_csv])
-            all_rank_rows.extend(rank_rows)
         output_csv = output_dir / "moiabc_ablation_friedman_all_ranks.csv"
         write_friedman_rank_csv(all_rank_rows, output_csv)
         outputs.append(output_csv)
@@ -1498,6 +1727,11 @@ def draw_ablation_outputs(args):
             suffix = METRIC_SPECS[metric]["suffix"]
             output_png = output_dir / f"moiabc_ablation_{suffix}_table.png"
             output_csv = output_png.with_suffix(".csv")
+            footer_label = None
+            footer_values = None
+            if metric == "best_sum":
+                footer_label = "+/=/-"
+                footer_values = ablation_wilcoxon_footer_values(input_dir, algorithms, metric)
             draw_ablation_table(
                 summary_rows,
                 benchmark_ids,
@@ -1508,8 +1742,20 @@ def draw_ablation_outputs(args):
                 show_note=not args.no_note,
                 cell_suffixes=cell_suffixes,
                 note_suffix="符号 +、=、- 分别表示 MOIABC 的性能优于、相近于或劣于对应消融变体。",
+                footer_label=footer_label,
+                footer_values=footer_values,
             )
-            try_write_csv(write_ablation_table_csv, summary_rows, benchmark_ids, algorithms, metric, output_csv, cell_suffixes)
+            try_write_csv(
+                write_ablation_table_csv,
+                summary_rows,
+                benchmark_ids,
+                algorithms,
+                metric,
+                output_csv,
+                cell_suffixes,
+                footer_label,
+                footer_values,
+            )
             outputs.extend([output_png, output_csv])
 
         wilcoxon_rows = read_filtered_wilcoxon_rows(input_dir)
@@ -1519,6 +1765,7 @@ def draw_ablation_outputs(args):
         draw_ablation_effect_table(effect_rows, output_png, show_title=False)
         try_write_csv(write_ablation_effect_csv, effect_rows, output_csv)
         outputs.extend([output_png, output_csv])
+        outputs.extend(draw_ablation_igd_boxplots(input_dir, output_dir, algorithms))
 
     for output in outputs:
         print(output)

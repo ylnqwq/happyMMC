@@ -62,6 +62,15 @@ def set_common_style(axis):
     axis.spines["right"].set_visible(False)
 
 
+def boxplot_with_labels(axis, data, labels, **kwargs):
+    try:
+        return axis.boxplot(data, tick_labels=labels, **kwargs)
+    except TypeError as error:
+        if "tick_labels" not in str(error):
+            raise
+        return axis.boxplot(data, labels=labels, **kwargs)
+
+
 def algorithm_title_prefix(algorithm_name):
     return "" if algorithm_name is None else f"{algorithm_name} "
 
@@ -164,6 +173,56 @@ def plot_soc_curve(rows, path, algorithm_name=None):
     plt.close(fig)
 
 
+def plot_storage_dispatch(power_rows, soc_rows, path, algorithm_name=None):
+    end_hours = np.array([row.get("time_h", row["hour"]) for row in power_rows], dtype=float)
+    time_step = float(np.median(np.diff(end_hours))) if len(end_hours) > 1 else PARAMS.time_step_hours
+    period_starts = end_hours - time_step
+    period_midpoints = period_starts + time_step * 0.5
+    bar_width = time_step * 0.86
+    discharge_kw = np.array([row["battery_discharge_kw"] for row in power_rows], dtype=float)
+    charge_kw = -np.array([row["battery_charge_kw"] for row in power_rows], dtype=float)
+    net_kw = np.array([row["battery_kw"] for row in power_rows], dtype=float)
+
+    soc_end_hours = np.array([row.get("time_h", row["hour"]) for row in soc_rows], dtype=float)
+    soc_hours = np.concatenate([[0.0], soc_end_hours])
+    soc = np.array([soc_rows[0]["soc_start"]] + [row["soc_end"] for row in soc_rows], dtype=float)
+
+    fig, axis = plt.subplots(figsize=(11, 6.5))
+    axis.bar(period_starts, discharge_kw, width=bar_width, align="edge", color="#e15759", edgecolor="white", linewidth=0.35, label="储能放电")
+    axis.bar(period_starts, charge_kw, width=bar_width, align="edge", color="#b07aa1", edgecolor="white", linewidth=0.35, label="储能充电")
+    axis.plot(period_midpoints, net_kw, color="#2f4b7c", linewidth=2.0, marker="o", markersize=3.5, label="储能净功率")
+    axis.axhline(0.0, color="#333333", linewidth=0.8)
+    axis.set_xlim(0, 24)
+    axis.set_xticks(np.arange(0, 25, 2))
+    axis.set_xticks(np.arange(0, 24.5, 0.5), minor=True)
+    axis.set_xlabel("时间 / h")
+    axis.set_ylabel("储能功率 / kW")
+    set_common_style(axis)
+
+    soc_axis = axis.twinx()
+    soc_axis.plot(soc_hours, soc, color="#1b9e77", linewidth=2.0, marker="s", markersize=3.5, label="荷电状态")
+    soc_axis.axhline(PARAMS.soc_min, color="#d95f02", linestyle="--", linewidth=1.1, label="荷电状态下限")
+    soc_axis.axhline(PARAMS.soc_max, color="#1b9e77", linestyle="--", linewidth=1.1, alpha=0.65, label="荷电状态上限")
+    soc_axis.set_ylim(0.0, 1.0)
+    soc_axis.set_ylabel("荷电状态")
+    soc_axis.spines["top"].set_visible(False)
+
+    handles, labels = axis.get_legend_handles_labels()
+    soc_handles, soc_labels = soc_axis.get_legend_handles_labels()
+    axis.legend(
+        handles + soc_handles,
+        labels + soc_labels,
+        fontsize=14,
+        ncol=3,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.01),
+        frameon=True,
+    )
+    fig.tight_layout()
+    fig.savefig(path, dpi=220, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_average_convergence(rows, path, algorithm_name=None):
     iterations = np.array([row["iteration"] for row in rows], dtype=float)
     mean_values = np.array([row["mean_best_sum"] for row in rows], dtype=float)
@@ -177,7 +236,7 @@ def plot_average_convergence(rows, path, algorithm_name=None):
     main_min_values = min_values[main_start_index:]
     main_max_values = max_values[main_start_index:]
 
-    fig, axis = plt.subplots(figsize=(10, 6))
+    fig, axis = plt.subplots(figsize=(10, 7.2))
     axis.fill_between(main_iterations, main_min_values, main_max_values, color="#b8c7d9", alpha=0.35, label="最小-最大范围")
     axis.plot(main_iterations, main_mean_values, color="#2f4b7c", linewidth=1.9, label="平均最优目标和")
     axis.set_xlim(main_iterations[0], main_iterations[-1])
@@ -198,12 +257,6 @@ def plot_average_convergence(rows, path, algorithm_name=None):
     early_slice = slice(0, main_start_index + 1)
     inset.fill_between(iterations[early_slice], min_values[early_slice], max_values[early_slice], color="#b8c7d9", alpha=0.35)
     inset.plot(iterations[early_slice], mean_values[early_slice], color="#2f4b7c", linewidth=1.2)
-    inset.set_yscale("log")
-    inset.set_xlabel("前期迭代", fontsize=9)
-    inset.set_ylabel("目标和", fontsize=9)
-    inset.grid(True, linestyle="--", linewidth=0.5, alpha=0.3)
-    inset.tick_params(labelsize=8)
-
     fig.tight_layout()
     fig.savefig(path, dpi=220)
     plt.close(fig)
@@ -331,6 +384,57 @@ def plot_selected_history(history_rows, summary_path, path):
     plt.close(fig)
 
 
+def plot_metric_boxplot_comparison(metric_sets, metric_name, ylabel, path):
+    algorithms = sorted(metric_sets, key=algorithm_sort_key)
+    colors = [ALGORITHM_COLORS.get(algorithm_name, "#9aa1a8") for algorithm_name in algorithms]
+    data = []
+    for algorithm_name in algorithms:
+        values = np.array([float(row[metric_name]) for row in metric_sets[algorithm_name]], dtype=float)
+        values = np.where(values <= 0.0, 1.0e-12, values)
+        data.append(values)
+
+    fig, axis = plt.subplots(figsize=(8.6, 5.2))
+    box = boxplot_with_labels(
+        axis,
+        data,
+        algorithms,
+        patch_artist=True,
+        showmeans=True,
+        meanprops={"marker": "D", "markerfacecolor": "#222222", "markeredgecolor": "#222222", "markersize": 4},
+        medianprops={"color": "#222222", "linewidth": 1.2},
+        whiskerprops={"linewidth": 1.0},
+        capprops={"linewidth": 1.0},
+    )
+    for patch, color in zip(box["boxes"], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.35)
+        patch.set_edgecolor(color)
+
+    for index, values in enumerate(data, start=1):
+        jitter = np.linspace(-0.08, 0.08, len(values)) if len(values) > 1 else np.array([0.0])
+        axis.scatter(
+            np.full(len(values), index, dtype=float) + jitter,
+            values,
+            s=18,
+            alpha=0.65,
+            color=colors[(index - 1) % len(colors)],
+            edgecolor="none",
+        )
+
+    axis.set_yscale("log")
+    axis.set_xlabel("算法")
+    axis.set_ylabel(ylabel)
+    set_common_style(axis)
+    fig.tight_layout()
+    fig.savefig(path, dpi=220)
+    plt.close(fig)
+
+
+def plot_igd_comparison_figures(metric_sets, output_dir):
+    plot_metric_boxplot_comparison(metric_sets, "IGD", "IGD 指标值", output_dir / "algorithm_igd_comparison.png")
+    plot_metric_boxplot_comparison(metric_sets, "IGD+", "IGD+ 指标值", output_dir / "algorithm_igd_plus_comparison.png")
+
+
 def plot_igd_igd_plus_comparison(metric_sets, path):
     algorithms = sorted(metric_sets, key=algorithm_sort_key)
     metrics = [
@@ -347,9 +451,10 @@ def plot_igd_igd_plus_comparison(metric_sets, path):
             values = np.where(values <= 0.0, 1.0e-12, values)
             data.append(values)
 
-        box = axis.boxplot(
+        box = boxplot_with_labels(
+            axis,
             data,
-            labels=algorithms,
+            algorithms,
             patch_artist=True,
             showmeans=True,
             meanprops={"marker": "D", "markerfacecolor": "#222222", "markeredgecolor": "#222222", "markersize": 4},
@@ -384,7 +489,7 @@ def plot_igd_igd_plus_comparison(metric_sets, path):
 
 
 def plot_algorithm_pareto_comparison(pareto_sets, reference_rows, path):
-    fig, axis = plt.subplots(figsize=(8, 6))
+    fig, axis = plt.subplots(figsize=(8.4, 7.7))
     if reference_rows:
         reference_economic = np.array([float(row["economic_cost"]) for row in reference_rows], dtype=float)
         reference_environment = np.array([float(row["environment_cost"]) for row in reference_rows], dtype=float)
@@ -428,7 +533,7 @@ def plot_algorithm_pareto_comparison(pareto_sets, reference_rows, path):
     axis.set_xlabel("经济成本 / 元")
     axis.set_ylabel("环境成本 / 元")
     set_common_style(axis)
-    axis.legend(fontsize=LEGEND_FONT_SIZE)
+    axis.legend(fontsize=12, ncol=2, loc="upper left", frameon=True)
     fig.tight_layout()
     fig.savefig(path, dpi=220)
     plt.close(fig)
@@ -455,13 +560,13 @@ def plot_algorithm_convergence_comparison(convergence_sets, path):
             }
         )
 
-    main_start_iteration = max(item["iterations"][item["start_index"]] for item in series)
-    fig, axis = plt.subplots(figsize=(10, 6))
+    final_iteration = max(float(item["iterations"][-1]) for item in series)
+    fig, axis = plt.subplots(figsize=(10, 7.2))
     main_y_values = []
 
     for item in series:
         iterations = item["iterations"]
-        mask = iterations >= main_start_iteration
+        mask = np.ones_like(iterations, dtype=bool)
         color = item["color"]
 
         axis.fill_between(
@@ -482,38 +587,19 @@ def plot_algorithm_convergence_comparison(convergence_sets, path):
         )
         main_y_values.extend(item["mean"][mask])
         main_y_values.extend(item["min"][mask])
+        main_y_values.extend(item["max"][mask])
 
-    main_y_values = np.array(main_y_values, dtype=float)
+    main_y_values = np.array([value for value in main_y_values if value > 0.0], dtype=float)
     main_low = float(np.min(main_y_values))
     main_high = float(np.max(main_y_values))
-    margin = max((main_high - main_low) * 0.08, 1.0)
 
-    axis.set_xlim(main_start_iteration, max(float(rows[-1]["iteration"]) for rows in convergence_sets.values()))
-    axis.set_ylim(main_low - margin, main_high + margin)
+    axis.set_xlim(0, final_iteration)
+    axis.set_yscale("log")
+    axis.set_ylim(main_low * 0.75, 1.0e9)
     axis.set_xlabel("迭代次数 / 次")
     axis.set_ylabel("最优目标和")
     set_common_style(axis)
-    axis.legend(loc="upper right", ncol=2, fontsize=LEGEND_FONT_SIZE)
-
-    inset = axis.inset_axes([0.30, 0.16, 0.50, 0.42])
-    for item in series:
-        iterations = item["iterations"]
-        mask = iterations <= main_start_iteration
-        color = item["color"]
-        inset.fill_between(
-            iterations[mask],
-            item["min"][mask],
-            item["max"][mask],
-            color=color,
-            alpha=0.08,
-            linewidth=0.0,
-        )
-        inset.plot(iterations[mask], item["mean"][mask], color=color, linewidth=1.2)
-    inset.set_yscale("log")
-    inset.set_xlabel("前期迭代", fontsize=9)
-    inset.set_ylabel("目标和", fontsize=9)
-    inset.grid(True, linestyle="--", linewidth=0.5, alpha=0.3)
-    inset.tick_params(labelsize=8)
+    axis.legend(loc="upper center", ncol=5, fontsize=12, frameon=True)
 
     fig.tight_layout()
     fig.savefig(path, dpi=220)
@@ -532,9 +618,12 @@ def plot_result_set(input_dir, output_dir, algorithm_name=None):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     power_rows = read_csv_rows(input_dir / "compromise_power_curves.csv")
+    soc_rows = read_csv_rows(input_dir / "compromise_soc_curve.csv")
 
     plot_power_dispatch(power_rows, output_dir / "compromise_power_dispatch.png", algorithm_name=algorithm_name)
     plot_cost_breakdown(power_rows, output_dir / "compromise_cost_breakdown.png", algorithm_name=algorithm_name)
+    if algorithm_name == "MOIABC":
+        plot_storage_dispatch(power_rows, soc_rows, output_dir / "compromise_storage_dispatch.png", algorithm_name=algorithm_name)
 
 
 def clear_existing_png_files(output_dir):
@@ -581,7 +670,7 @@ def main():
             reference_rows = read_dict_rows(reference_path)
 
     if len(metric_sets) >= 2:
-        plot_igd_igd_plus_comparison(metric_sets, OUTPUT_DIR / "algorithm_igd_igd_plus_comparison.png")
+        plot_igd_comparison_figures(metric_sets, OUTPUT_DIR)
     if len(pareto_sets) >= 2:
         plot_algorithm_pareto_comparison(pareto_sets, reference_rows, OUTPUT_DIR / "algorithm_pareto_comparison.png")
     if len(convergence_sets) >= 2:

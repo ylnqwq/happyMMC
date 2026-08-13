@@ -12,6 +12,7 @@
 /multi_objective/moiabc_archive_rate_sensitivity_results/
 /multi_objective/moiabc_archive_rate_sensitivity_results*.zip
 /multi_objective/moiabc_ablation_results/
+/multi_objective/旧结果/moiabc_ablation_results/
 /multi_objective/moiabc_ablation_*_results/
 /multi_objective/mo_comparison_results/
 /multi_objective/mo_comparison_results_baselines_no_moiabc/

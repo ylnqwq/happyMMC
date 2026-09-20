@@ -30,7 +30,7 @@ from multi_objective.statistical_tests import (
     save_average_rank_results,
     save_wilcoxon_results,
 )
-from experiment_utils import (
+from multi_objective.experiment_utils import (
     env_bool,
     env_csv,
     env_float,

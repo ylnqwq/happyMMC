@@ -23,7 +23,7 @@ if str(ROOT_DIR) not in sys.path:
 if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
-from experiment_utils import env_bool, env_csv, env_float, env_int, env_output_dir, format_float, print_progress
+from multi_objective.experiment_utils import env_bool, env_csv, env_float, env_int, env_output_dir, format_float, print_progress
 from multi_objective.algorithms import MOABC, MODE, MOEAD, MOIABC, MOPSO
 from multi_objective.application_point.microgrid_dispatch_model import (
     BOUNDS,

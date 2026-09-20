@@ -19,7 +19,7 @@ ROOT_DIR = MODULE_DIR.parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from experiment_utils import env_output_dir
+from multi_objective.experiment_utils import env_output_dir
 from multi_objective.application_point.microgrid_dispatch_model import BUY_PRICE, PARAMS, SELL_PRICE
 
 

@@ -12,7 +12,7 @@ if str(ROOT_DIR) not in sys.path:
 if str(MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(MODULE_DIR))
 
-from experiment_utils import safe_filename_stem, save_rows_to_csv
+from multi_objective.experiment_utils import safe_filename_stem, save_rows_to_csv
 from multi_objective.statistical_tests import (
     print_average_rank_overview,
     print_wilcoxon_overview,
